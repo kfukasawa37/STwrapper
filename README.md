@@ -11,7 +11,8 @@ detection data format of [ctrest](https://github.com/YoshihiroNakashima/ctrest)
 
 ```r
 # install.packages("remotes")
-remotes::install_github("kfukasawa37/STwrapper")
+remotes::install_github("YoshihiroNakashima/ctrest")  # used in the vignette
+remotes::install_github("kfukasawa37/STwrapper", build_vignettes = TRUE)
 ```
 
 ## Usage
@@ -43,8 +44,8 @@ detection <- convert_stay(sim, term = "term1")
 
 The vignette `vignette("rest-workflow", package = "STwrapper")` runs the
 whole analysis: simulation, merging with STwrapper, and density estimation
-with `ctrest::bayes_rest()`, compared with the true values. To build it,
-install with `remotes::install_github("kfukasawa37/STwrapper", build_vignettes = TRUE)`.
+with `ctrest::bayes_rest()`, compared with the true values. It is built at
+installation (see above); building takes a few minutes because of the MCMC.
 
 ## Input format
 
