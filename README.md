@@ -47,6 +47,17 @@ whole analysis: simulation, merging with STwrapper, and density estimation
 with `ctrest::bayes_rest()`, compared with the true values. It is built at
 installation (see above); building takes a few minutes because of the MCMC.
 
+### 日本語チュートリアル
+
+`vignette("tutorial-ja", package = "STwrapper")` は、この流れを初心者向けに
+日本語で説明したチュートリアルです。Rtools と依存パッケージのインストールから始めて、
+入力データの形、`convert_stay()` による滞在のまとめ方、ダミーデータの作成、
+WAIC による滞在時間分布の選択、ctrest での密度推定と真の値との比較までを、
+コードと図で順に説明しています。
+
+A step-by-step tutorial in Japanese, from installing Rtools to REST density
+estimation with ctrest, is available as `vignette("tutorial-ja", package = "STwrapper")`.
+
 ## Input format
 
 A data frame (for example from `read.csv()`) with one row per animal (or

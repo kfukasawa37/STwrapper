@@ -17,9 +17,9 @@ simulate_stay_data(
   group_lag = 3,
   noentry_ratio = 0.5,
   video_length = 20,
-  interval = 2,
+  interval = 5,
   species = "deer",
-  start = as.POSIXct("2024-05-01 09:00:00", tz = "UTC"),
+  start = "2024-05-01 09:00:00",
   tz = "UTC"
 )
 }
@@ -54,10 +54,12 @@ one (seconds).}
 
 \item{species}{Species name of the simulated animal.}
 
-\item{start}{Date-time at which the first camera is set up. The other
-cameras are set up within the following 3 hours.}
+\item{start}{Date-time at which the first camera is set up, as a
+character string (\code{"yyyy-mm-dd HH:MM:SS"}, read in the time zone \code{tz}) or
+a \code{POSIXct}. The other cameras are set up within the following 3 hours.}
 
-\item{tz}{Time zone of the date-times.}
+\item{tz}{Time zone of the date-times, for example \code{"Asia/Tokyo"}. The
+activity pattern, file names and clock times follow this time zone.}
 }
 \value{
 A data frame with columns \code{id}, \code{deploymentID}, \code{video_name},
@@ -101,6 +103,10 @@ the next video straight away, otherwise it waits for the next trigger.
 Entries during the waiting time of animals that leave before the next video
 are missed, and an animal that is in view at the end of a video but gone
 when the next one starts gives a right-censored staying time.
+
+Within a video, \code{sp_ID} numbers the animals; an animal that continues from
+the previous video keeps its number, and new animals get the smallest free
+numbers.
 
 Each video is named \verb{<station>_yymmdd_HHMMSS_<mmdd><nnnn>.MOV} with the
 date-time at which recording ended, and \code{enter} / \code{out} are clock times

@@ -30,6 +30,10 @@
 #' are missed, and an animal that is in view at the end of a video but gone
 #' when the next one starts gives a right-censored staying time.
 #'
+#' Within a video, `sp_ID` numbers the animals; an animal that continues from
+#' the previous video keeps its number, and new animals get the smallest free
+#' numbers.
+#'
 #' Each video is named `<station>_yymmdd_HHMMSS_<mmdd><nnnn>.MOV` with the
 #' date-time at which recording ended, and `enter` / `out` are clock times
 #' rounded to seconds. A video of people (`species1 = "hito"`) is added when
@@ -53,9 +57,11 @@
 #' @param interval Time between the end of a video and the start of the next
 #'   one (seconds).
 #' @param species Species name of the simulated animal.
-#' @param start Date-time at which the first camera is set up. The other
-#'   cameras are set up within the following 3 hours.
-#' @param tz Time zone of the date-times.
+#' @param start Date-time at which the first camera is set up, as a
+#'   character string (`"yyyy-mm-dd HH:MM:SS"`, read in the time zone `tz`) or
+#'   a `POSIXct`. The other cameras are set up within the following 3 hours.
+#' @param tz Time zone of the date-times, for example `"Asia/Tokyo"`. The
+#'   activity pattern, file names and clock times follow this time zone.
 #'
 #' @return A data frame with columns `id`, `deploymentID`, `video_name`,
 #'   `DateTime` (`yyyy/mm/dd HH:MM:SS`), `species1`, `sp_ID`, `enter`, `out`,
@@ -83,9 +89,9 @@ simulate_stay_data <- function(n_station = 30,
                                group_lag = 3,
                                noentry_ratio = 0.5,
                                video_length = 20,
-                               interval = 2,
+                               interval = 5,
                                species = "deer",
-                               start = as.POSIXct("2024-05-01 09:00:00", tz = "UTC"),
+                               start = "2024-05-01 09:00:00",
                                tz = "UTC") {
   mu <- activity_peaks / 24 * 2 * pi
   kappa <- rep(activity_kappa, length.out = length(mu))
@@ -152,7 +158,8 @@ simulate_stay_data <- function(n_station = 30,
     v_end <- v_start + video_length
 
     rows <- list()
-    prev <- integer(0)  # animals seen in the previous video
+    prev <- integer(0)     # animals seen in the previous video
+    prev_id <- integer(0)  # and their sp_ID
     for (v in seq_along(v_start)) {
       vs <- v_start[v]
       ve <- v_end[v]
@@ -161,11 +168,15 @@ simulate_stay_data <- function(n_station = 30,
       # videos follow each other directly while an animal stays in view, so an
       # animal also seen in the previous video continues its stay
       cont <- inside %in% prev
+      ids <- integer(length(inside))
+      ids[cont] <- prev_id[match(inside[cont], prev)]
+      free <- setdiff(seq_along(inside), ids[cont])
+      ids[!cont] <- free[seq_len(sum(!cont))]
       left <- enter[inside] < vs
       right <- exit[inside] > ve
       rows[[v]] <- data.frame(
         v = rep(v, length(inside)),
-        sp_ID = seq_along(inside),
+        sp_ID = ids,
         enter = clock_time(pmax(enter[inside], vs), tz),
         out = clock_time(pmin(exit[inside], ve), tz),
         cens = ifelse(left & right, "both",
@@ -183,6 +194,7 @@ simulate_stay_data <- function(n_station = 30,
         ))
       }
       prev <- inside
+      prev_id <- ids
     }
     rec <- do.call(rbind, rows)
     if (is.null(rec)) {

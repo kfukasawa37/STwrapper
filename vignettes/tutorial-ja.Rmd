@@ -99,15 +99,14 @@ R.version.string
 
    | R のバージョン | Rtools |
    |---|---|
-   | 4.5.x | Rtools45 |
+   | 4.6.x、4.5.x | Rtools45 |
    | 4.4.x | Rtools44 |
    | 4.3.x | Rtools43 |
    | 4.2.x | Rtools42 |
 
-3. インストーラ（例：`rtools44-xxxx-xxxx.exe`）をダウンロードし、
+3. インストーラ（例：`rtools45-xxxx-xxxx.exe`）をダウンロードし、
    すべて既定の設定のまま「次へ」を押してインストールします。
-   インストール先は既定の `C:
-tools44` などのままにしてください。
+   インストール先は既定の `C:\rtools45` などのままにしてください。
 4. **R（RStudio）を再起動** します。
 
 ### macOS
@@ -234,8 +233,13 @@ STwrapper に渡すのは、**動物 1 個体 × 動画 1 本を 1 行** とし�
 `DateTime` が空欄の場合は、`video_name` の `<カメラ名>_yymmdd_HHMMSS_...` の部分から
 日時を読み取ります。
 
+カメラの時計は日本時間（JST）で動いているので、タイムゾーンを `tz = "Asia/Tokyo"` と
+指定します。指定しないと UTC（協定世界時）として扱われ、日時が 9 時間ずれた
+意味になってしまいます。このチュートリアルでは、日時を扱う関数すべてに
+`tz = "Asia/Tokyo"` を付けます。
+
 ```{r}
-parse_video_datetime("c15_240501_105240_05010001.MOV")
+parse_video_datetime("c15_240501_105240_05010001.MOV", tz = "Asia/Tokyo")
 ```
 
 ## サンプルデータを見てみる
@@ -264,7 +268,7 @@ example[, c("deploymentID", "video_name", "species1", "sp_ID",
 `convert_stay()` に渡すと、ctrest の `detection_data` と同じ形になります。
 
 ```{r}
-converted <- convert_stay(example, term = "term1")
+converted <- convert_stay(example, term = "term1", tz = "Asia/Tokyo")
 converted
 ```
 
@@ -325,7 +329,9 @@ sim <- simulate_stay_data(
   stay_mean = 10,      # 平均滞在時間：10 秒
   stay_sd = 8,         # 滞在時間の標準偏差：8 秒
   group_mean = 1.5,    # 平均群れサイズ
-  species = "deer"
+  interval = 5,        # 動画の撮影後、次の撮影までのラグ：5 秒
+  species = "deer",
+  tz = "Asia/Tokyo"    # 日本時間
 )
 ```
 
@@ -333,8 +339,9 @@ sim <- simulate_stay_data(
 
 - 動物は明け方（5:30 頃）と夕方（18:00 頃）に多く現れる
 - 群れで来ることがあり、群れの個体は数秒ずつずれて入る
-- カメラは 20 秒の動画を撮り、2 秒あけて、まだ動物がいれば次の動画を撮る
-- 次の動画が始まる前に出て行った場合は右打ち切り（`right`）になる
+- カメラは 20 秒の動画を撮り、5 秒のラグのあと、まだ動物がいれば次の動画を撮る
+- ラグの間に出て行った場合は、出るところが映らないので右打ち切り（`right`）になる
+- 前の動画から続いている個体は、次の動画でも同じ個体番号（`sp_ID`）になる
 - フォーカスエリアに入らずに映るだけの動画（`noentry`）もある
 - 各カメラの設置時と回収時に人（`hito`）の動画がある
 
@@ -387,33 +394,46 @@ axis(1, at = seq(0, 24, 3))
 ## 図で確かめる：動画にまたがる滞在
 
 1 回の滞在が複数の動画に分かれて記録される様子を、あるカメラの記録で見てみます。
-灰色の帯が動画（20 秒）、線が動画に映っていた範囲です。
+灰色の帯が動画（20 秒）、線が各個体が動画に映っていた範囲です。
+点線は、同じ個体が 5 秒のラグをはさんで次の動画に続いていることを表します。
 
 ```{r fig-timeline, fig.cap = "図2　2 本の動画にまたがって記録された滞在の例", fig.height = 3}
+# "H:MM:SS" を 0 時からの秒数に直す
 to_sec <- function(x) {
   p <- do.call(rbind, lapply(strsplit(x, ":"), as.numeric))
   p[, 1] * 3600 + p[, 2] * 60 + p[, 3]
 }
 
-# 前の動画から続く記録を 1 つ選び、その前後の動画を取り出す
+# 前の動画から続く記録を 1 つ選び、その動画と 1 本前の動画を取り出す
 i <- which(stay_records$Enter_cont %in% TRUE)[1]
 videos <- unique(stay_records$video_name[(i - 1):i])
 seg <- stay_records[stay_records$video_name %in% videos & !is.na(stay_records$enter), ]
+seg$video_no <- match(seg$video_name, videos)
 
-video_end <- to_sec(format(as.POSIXct(seg$DateTime, format = "%Y/%m/%d %H:%M:%S",
-                                      tz = "UTC"), "%H:%M:%S"))
-t0 <- min(video_end) - 20
-op <- par(mar = c(4, 8, 1, 1))
-plot(NA, xlim = c(0, max(video_end) - t0 + 2), ylim = c(0.5, nrow(seg) + 0.5),
+# 動画の終了時刻（ファイル名の時刻）と開始時刻
+end_time <- as.POSIXct(stay_records$DateTime[match(videos, stay_records$video_name)],
+                       format = "%Y/%m/%d %H:%M:%S", tz = "Asia/Tokyo")
+video_end <- to_sec(format(end_time, "%H:%M:%S"))
+video_start <- video_end - 20
+t0 <- min(video_start)
+
+ids <- sort(unique(seg$sp_ID))
+op <- par(mar = c(4, 5, 2, 1))
+plot(NA, xlim = c(0, max(video_end) - t0), ylim = c(0.5, length(ids) + 0.5),
      xlab = "最初の動画の開始からの秒数", ylab = "", yaxt = "n")
-for (e in unique(video_end)) {
-  rect(e - 20 - t0, 0, e - t0, nrow(seg) + 1, col = "grey90", border = NA)
-}
+rect(video_start - t0, 0, video_end - t0, length(ids) + 1, col = "grey90", border = NA)
+mtext(paste0("動画", seq_along(videos)), side = 3, line = 0.3,
+      at = (video_start + video_end) / 2 - t0)
+row <- match(seg$sp_ID, ids)
 cols <- ifelse(seg$Enter_cont, "#F58518", "#4C78A8")
-segments(to_sec(seg$enter) - t0, seq_len(nrow(seg)),
-         to_sec(seg$out) - t0, seq_len(nrow(seg)), lwd = 6, col = cols)
-axis(2, at = seq_len(nrow(seg)), las = 1, cex.axis = 0.8,
-     labels = paste0("動画", match(seg$video_name, videos), " 個体", seg$sp_ID))
+segments(to_sec(seg$enter) - t0, row, to_sec(seg$out) - t0, row, lwd = 6, col = cols)
+# 同じ個体の続きを点線でつなぐ
+for (k in which(seg$Enter_cont)) {
+  before <- seg[seg$video_no == seg$video_no[k] - 1 & seg$sp_ID == seg$sp_ID[k], ]
+  segments(to_sec(before$out) - t0, row[k], to_sec(seg$enter[k]) - t0, row[k],
+           lty = 3, lwd = 2, col = "grey40")
+}
+axis(2, at = seq_along(ids), labels = paste0("個体", ids), las = 1)
 legend("bottomright", legend = c("新しく入った", "前の動画から継続"),
        col = c("#4C78A8", "#F58518"), lwd = 6, bty = "n", cex = 0.8)
 par(op)
@@ -421,14 +441,16 @@ seg[, c("video_name", "sp_ID", "enter", "out",
         "stayingTimeCensoringtype", "Enter_new", "Enter_cont")]
 ```
 
-この 2 行は `convert_stay()` によって 1 回の滞在にまとめられます。
+動画 1 で最後まで映っていた個体（`right`）が、動画 2 に `Enter_cont = TRUE`（`left`）で
+続いています。この 2 行は `convert_stay()` によって 1 回の滞在にまとめられ、
+滞在時間は動画 1 の `enter` から動画 2 の `out` までになります。
 
 # STwrapper で変換する
 
 ## `convert_stay()` を実行する
 
 ```{r}
-detection <- convert_stay(stay_records, term = "term1")
+detection <- convert_stay(stay_records, term = "term1", tz = "Asia/Tokyo")
 head(detection, 10)
 ```
 
@@ -553,6 +575,56 @@ activity_data <- format_activity(
 head(activity_data)
 ```
 
+## 滞在時間の分布を選ぶ
+
+REST 法の推定値は平均滞在時間に強く左右されるので、滞在時間の確率分布の選び方が
+大切です。ctrest では、候補の分布ごとに `bayes_stay_selection()` で滞在時間の
+モデルを当てはめ、**WAIC**（小さいほど予測がよいモデル）で比べることが
+推奨されています。ここでは 4 つの分布を比べます。
+
+| 分布 | `stay_family` |
+|---|---|
+| 指数分布 | `"exponential"` |
+| ガンマ分布 | `"gamma"` |
+| 対数正規分布 | `"lognormal"` |
+| ワイブル分布 | `"weibull"` |
+
+分布ごとに MCMC を実行するので、数分かかります。
+
+```{r, eval = has_ctrest, message = FALSE, results = "hide"}
+families <- c("exponential", "gamma", "lognormal", "weibull")
+stay_fits <- lapply(families, function(f) {
+  bayes_stay_selection(
+    formula_stay = Stay ~ 1,
+    stay_data = stay_data,
+    col_name_cens = "Cens",
+    stay_family = f,
+    cores = 2,
+    iter = 3000,
+    warmup = 1000,
+    chains = 2,
+    thin = 2,
+    target_species = "deer"
+  )
+})
+```
+
+```{r, eval = has_ctrest}
+waic_table <- data.frame(
+  family = families,
+  WAIC = sapply(stay_fits, function(fit) min(fit$WAIC$WAIC))
+)
+waic_table <- waic_table[order(waic_table$WAIC), ]
+knitr::kable(waic_table, digits = 1, row.names = FALSE, col.names = c("分布", "WAIC"),
+             caption = "表　滞在時間の分布の比較（WAIC が小さいほどよい）")
+best_family <- waic_table$family[1]
+best_family
+```
+
+WAIC が最も小さい分布（`best_family`）を、次の密度推定で使います。
+シミュレーションでは滞在時間を対数正規分布から作っているので、
+対数正規分布が選ばれるのが自然です。
+
 ## ベイズ推定を実行する
 
 `bayes_rest()` で密度を推定します。MCMC（マルコフ連鎖モンテカルロ法）を使うので、
@@ -562,7 +634,7 @@ head(activity_data)
 |---|---|
 | `formula_stay` | 滞在時間のモデル。`Stay ~ 1` は共変量なし |
 | `formula_density` | 密度のモデル。`~ 1` は全地点で共通の密度 |
-| `stay_family` | 滞在時間の確率分布（ここでは対数正規分布） |
+| `stay_family` | 滞在時間の確率分布（前の節で WAIC により選んだもの） |
 | `focal_area` | フォーカスエリアの面積（m²） |
 | `iter`, `warmup`, `chains`, `thin` | MCMC の設定（反復回数、捨てる回数、チェーン数、間引き） |
 | `target_species` | 解析する種 |
@@ -576,7 +648,7 @@ rest_model <- bayes_rest(
   stay_data = stay_data,
   activity_data = activity_data,
   activity_estimation = "kernel",
-  stay_family = "lognormal",
+  stay_family = best_family,
   focal_area = truth$focal_area,
   cores = 2,
   iter = 4000,
@@ -651,7 +723,8 @@ detection <- convert_stay(
   stay_records,
   col_station = "deploymentID",   # 地点の列名
   col_species = "species1",       # 種名の列名
-  term = "2024spring"             # 調査期間（列名を指定してもよい）
+  term = "2024spring",            # 調査期間（列名を指定してもよい）
+  tz = "Asia/Tokyo"               # カメラの時計のタイムゾーン
 )
 
 # 3. 以降はこのチュートリアルの ctrest の手順と同じ
