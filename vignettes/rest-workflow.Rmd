@@ -1,0 +1,163 @@
+---
+title: "From staying time records to REST density estimates"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{From staying time records to REST density estimates}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = requireNamespace("ctrest", quietly = TRUE)
+)
+```
+
+This vignette runs the whole workflow on simulated data: per-video staying
+time records are merged into staying events with STwrapper, and animal density
+is estimated with the REST model of
+[ctrest](https://github.com/YoshihiroNakashima/ctrest). The last chunks need
+ctrest:
+
+```{r, eval = FALSE}
+remotes::install_github("YoshihiroNakashima/ctrest")
+```
+
+## Simulate camera-trap videos
+
+`simulate_stay_data()` simulates animals entering the focal area of 30
+cameras over 60 days and annotates every recorded 20-second video. Animals
+that stay longer than one video appear in consecutive videos, marked with
+`Enter_cont = TRUE`.
+
+```{r}
+library(STwrapper)
+
+set.seed(123)
+sim <- simulate_stay_data(
+  n_station = 30,
+  days = 60,
+  density = 30,      # individuals / km^2
+  focal_area = 2,    # m^2
+  stay_mean = 10,    # seconds
+  stay_sd = 8,
+  group_mean = 1.5,
+  species = "deer"
+)
+truth <- attr(sim, "truth")
+str(truth)
+```
+
+The records look like the annotation table of a real survey. Here the data
+are written to a CSV file and read back, as you would do with your own data.
+
+```{r}
+path <- tempfile(fileext = ".csv")
+write.csv(sim, path, row.names = FALSE)
+stay_records <- read.csv(path)
+
+head(stay_records[stay_records$Enter_cont %in% TRUE |
+                    c(stay_records$Enter_cont[-1] %in% TRUE, FALSE),
+                  c("video_name", "species1", "enter", "out",
+                    "stayingTimeCensoringtype", "Enter_new", "Enter_cont")])
+```
+
+## Merge staying events with STwrapper
+
+`convert_stay()` merges rows of the same staying event across videos and
+returns the `ctrest::detection_data` format: one row per video and species,
+with the number of entries `y`, the staying time `Stay` (seconds) and the
+right-censoring indicator `Cens`.
+
+```{r}
+detection <- convert_stay(stay_records, term = "term1")
+head(detection)
+table(y = detection$y, useNA = "ifany")
+```
+
+Every entry is counted once and has one staying time:
+
+```{r}
+c(entries = sum(detection$y, na.rm = TRUE),
+  staying_times = sum(!is.na(detection$Stay)),
+  simulated_entries = truth$n_entry)
+```
+
+## Estimate density with ctrest
+
+The station table only needs station IDs here. The survey effort of each
+camera is taken from its first and last videos (camera set-up and retrieval).
+
+```{r, message = FALSE}
+library(ctrest)
+
+station_data <- data.frame(Station = unique(detection$Station))
+
+station_rest <- format_station_data(
+  detection_data = detection,
+  station_data = station_data,
+  col_name_station = "Station",
+  col_name_species = "Species",
+  col_name_y = "y",
+  model = "REST"
+)
+
+station_effort <- add_effort(
+  detection_data = detection,
+  station_data_formatted = station_rest,
+  col_name_station = "Station",
+  col_name_datetime = "DateTime",
+  col_name_term = "Term"
+)
+
+stay_data <- format_stay(
+  detection_data = detection,
+  station_data = station_data,
+  col_name_station = "Station",
+  col_name_species = "Species",
+  col_name_stay = "Stay",
+  col_name_cens = "Cens"
+)
+
+activity_data <- format_activity(
+  detection_data = detection,
+  col_name_station = "Station",
+  col_name_species = "Species",
+  col_name_datetime = "DateTime",
+  indep_time = 30
+)
+```
+
+```{r, message = FALSE, results = "hide"}
+rest_model <- bayes_rest(
+  formula_stay = Stay ~ 1,
+  formula_density = ~ 1,
+  formula_enter = ~ 1,
+  station_effort_data = station_effort,
+  stay_data = stay_data,
+  activity_data = activity_data,
+  activity_estimation = "kernel",
+  stay_family = "lognormal",
+  focal_area = truth$focal_area,
+  cores = 2,
+  iter = 4000,
+  warmup = 1000,
+  chains = 2,  # R CMD check allows at most 2 parallel processes
+  thin = 2,
+  model = "REST",
+  target_species = "deer"
+)
+```
+
+```{r}
+rest_model$summary_result
+```
+
+The estimates can be compared with the values used in the simulation:
+
+```{r}
+c(density = truth$density, mean_stay = truth$mean_stay,
+  activity_level = truth$activity_level)
+```

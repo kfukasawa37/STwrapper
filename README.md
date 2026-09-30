@@ -25,6 +25,27 @@ detection <- convert_stay(stay, term = "term1")
 write.csv(detection, "detection_data.csv", row.names = FALSE)
 ```
 
+## Simulated data and a full REST workflow
+
+`simulate_stay_data()` simulates animals entering the focal areas of camera
+traps under the REST model (with a daily activity pattern, group arrivals and
+log-normal staying times), records 20-second videos and annotates them in the
+input format of `convert_stay()`. Stays longer than one video are split over
+consecutive videos with `Enter_cont = TRUE`, so the number of entries and the
+staying times are consistent.
+
+```r
+set.seed(123)
+sim <- simulate_stay_data(n_station = 30, days = 60, density = 30, focal_area = 2)
+attr(sim, "truth")        # true density, mean staying time, activity level, ...
+detection <- convert_stay(sim, term = "term1")
+```
+
+The vignette `vignette("rest-workflow", package = "STwrapper")` runs the
+whole analysis: simulation, merging with STwrapper, and density estimation
+with `ctrest::bayes_rest()`, compared with the true values. To build it,
+install with `remotes::install_github("kfukasawa37/STwrapper", build_vignettes = TRUE)`.
+
 ## Input format
 
 A data frame (for example from `read.csv()`) with one row per animal (or

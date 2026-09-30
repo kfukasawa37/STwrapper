@@ -5,3 +5,5 @@ private/
 .Ruserdata
 *.Rcheck/
 *.tar.gz
+/doc/
+/Meta/

@@ -2,3 +2,4 @@
 
 export(convert_stay)
 export(parse_video_datetime)
+export(simulate_stay_data)
