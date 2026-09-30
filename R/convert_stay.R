@@ -22,24 +22,26 @@
 #' previous video in which the same species appeared. When several such events
 #' are open, the one with the same `sp_ID` is preferred, then the earliest.
 #'
-#' The output has one row per video and species:
-#' * `DateTime` is the recording date-time of the video.
-#' * `y` is the number of staying events that started in the video (entries
-#'   into the focal area). It is 0 when the species was detected without a new
-#'   entry (`"noentry"` in `note`, `memo` or `stayingTimeCensoringtype`, or
-#'   only continuations of earlier events), and `NA` when there is no entry
-#'   information at all (no `enter`/`out` and no `"noentry"`).
-#' * `Stay` is the staying time in seconds of the first event that started in
-#'   the video, from `enter` of its first row to `out` of its last row, which
-#'   may be in a later video.
+#' The output has one row per staying event:
+#' * `DateTime` is the recording date-time of the video in which the event
+#'   started.
+#' * `y` is 1 (one entry into the focal area).
+#' * `Stay` is the staying time in seconds, from `enter` of the first row of
+#'   the event to `out` of its last row, which may be in a later video.
 #' * `Cens` is 1 when the last row of the event has
 #'   `stayingTimeCensoringtype` `"right"` or `"both"`, and 0 otherwise.
 #'
-#' When several events start in the same video, the second and later ones are
-#' output as additional rows with `y = NA` and their own `Stay` and `Cens`.
-#' `ctrest::format_stay()` then uses every event for staying time, while
-#' `ctrest::format_station_data()` drops the `y = NA` rows and counts each
-#' video once with its number of entries.
+#' When several animals enter in the same video, each gets its own row with
+#' `y = 1`. In addition, a video in which the species was detected but no
+#' event started gives one row with `Stay` and `Cens` set to `NA`: `y` is 0
+#' when there was no new entry (`"noentry"` in `note`, `memo` or
+#' `stayingTimeCensoringtype`, or only continuations of earlier events), and
+#' `NA` when there is no entry information at all (no `enter`/`out` and no
+#' `"noentry"`).
+#'
+#' The sum of `y` per station is the number of entries used by the REST model.
+#' Because a video with several entries gives several rows, the output is not
+#' suited to the RAD-REST model, which needs the number of entries per video.
 #'
 #' The `enter` and `out` columns are clock times (`H:MM:SS`). They are placed
 #' on the calendar day (the video's date, or the day before or after) that
@@ -185,7 +187,7 @@ convert_stay <- function(data,
       video_dt = stays$video_dt[first],
       Term = stays$Term[first],
       Species = stays$Species[first],
-      y = NA_integer_,
+      y = 1L,
       Stay = as.numeric(difftime(stays$t_out[last], stays$t_enter[first],
                                  units = "secs")),
       Cens = as.numeric(stays$still_in[last]),
@@ -198,15 +200,8 @@ convert_stay <- function(data,
             paste(events$video[events$Stay < 0], collapse = ", "), call. = FALSE)
   }
 
-  # The first event of each video x species carries the number of entries;
-  # further events of the same video keep y = NA so that they are used for
-  # staying time only and each video is counted once for the passes.
-  new_key <- paste(events$Station, events$video, events$Species, sep = "\r")
-  n_new <- table(new_key)
-  first_ev <- !duplicated(new_key)
-  events$y[first_ev] <- as.integer(n_new[new_key[first_ev]])
-
   # Detections (video x species) in which no event started
+  new_key <- paste(events$Station, events$video, events$Species, sep = "\r")
   det_key <- paste(d$Station, d$video, d$Species, sep = "\r")
   keep <- !det_key %in% new_key & !duplicated(det_key)
   rest <- d[keep, , drop = FALSE]
@@ -227,8 +222,8 @@ convert_stay <- function(data,
   )
 
   out <- rbind(events, others)
-  out <- out[order(out$Station, out$video_dt, out$video, out$Species,
-                   is.na(out$y)), , drop = FALSE]
+  out <- out[order(out$Station, out$video_dt, out$video, out$Species),
+             , drop = FALSE]
   out$DateTime <- out$video_dt
   out <- out[, c("Station", "DateTime", "Term", "Species", "y", "Stay", "Cens")]
   rownames(out) <- NULL

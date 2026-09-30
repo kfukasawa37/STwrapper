@@ -5,7 +5,7 @@ Authors@R:
     person("kfukasawa37", email = "fukasawa@nies.go.jp", role = c("aut", "cre"))
 Description: Converts per-video staying time annotations of animals in front of
     camera traps into the detection data format used by the 'ctrest' package
-    (REST / RAD-REST models). Staying events that span several consecutive
+    (REST model). Staying events that span several consecutive
     videos are merged into one event using the Enter_new / Enter_cont flags,
     and right censoring is taken from the last video of each event. Also
     simulates camera-trap staying time records for testing REST analyses.

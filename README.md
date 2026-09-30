@@ -2,7 +2,7 @@
 
 STwrapper converts per-video staying time annotations from camera traps into the
 detection data format of [ctrest](https://github.com/YoshihiroNakashima/ctrest)
-(REST / RAD-REST models).
+(REST model).
 
 カメラトラップ動画ごとの動物滞在時間の記録を、ctrest パッケージの
 `detection_data`（`ctrest::detection_data`）形式に変換する R パッケージです。
@@ -75,16 +75,18 @@ Optional columns:
 
 ## Output format
 
-The same format as `ctrest::detection_data`, with one row per video and species:
+The same columns as `ctrest::detection_data`, with one row per staying event
+(plus one row for each video in which the species was detected without a new
+entry):
 
 | Column | Type | Content |
 |---|---|---|
 | `Station` | chr | Station |
-| `DateTime` | POSIXct | Recording date-time of the video |
+| `DateTime` | POSIXct | Recording date-time of the video in which the event started |
 | `Term` | | Value of `term` (a constant or a column name) |
 | `Species` | chr | Species |
-| `y` | int | Number of staying events that started in the video; 0 for a detection without a new entry, `NA` when there is no entry information |
-| `Stay` | dbl | Staying time in seconds of the event that started in the video, from `enter` of its first video to `out` of its last video |
+| `y` | int | 1 for a staying event; 0 for a detection without a new entry, `NA` when there is no entry information |
+| `Stay` | dbl | Staying time in seconds, from `enter` of the first video of the event to `out` of its last video |
 | `Cens` | dbl | 1 when the last video of the event is `right` or `both` censored, else 0 |
 
 ## How events are merged
@@ -96,11 +98,11 @@ video of the same species. If several events are open, the one with the same
 staying event therefore gives one staying time even if it spans many videos,
 and is counted in `y` only for the video in which it started.
 
-When several events start in the same video, the first row of that video has
-`y` equal to the number of events, and the other events are added as rows with
-`y = NA` and their own `Stay` and `Cens`. `ctrest::format_stay()` uses all of
-them for staying time, while `ctrest::format_station_data()` drops the
-`y = NA` rows and counts each video once.
+When several animals enter in the same video, each gets its own row with
+`y = 1`, so every row with a staying time has `y = 1` and the sum of `y` per
+station is the number of entries used by the REST model. Because the number
+of entries per video is spread over several rows, the output is meant for the
+REST model, not for RAD-REST.
 
 ## License
 

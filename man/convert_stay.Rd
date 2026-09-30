@@ -62,26 +62,28 @@ video has \code{Enter_cont = TRUE}. For each station and species, a row with
 previous video in which the same species appeared. When several such events
 are open, the one with the same \code{sp_ID} is preferred, then the earliest.
 
-The output has one row per video and species:
+The output has one row per staying event:
 \itemize{
-\item \code{DateTime} is the recording date-time of the video.
-\item \code{y} is the number of staying events that started in the video (entries
-into the focal area). It is 0 when the species was detected without a new
-entry (\code{"noentry"} in \code{note}, \code{memo} or \code{stayingTimeCensoringtype}, or
-only continuations of earlier events), and \code{NA} when there is no entry
-information at all (no \code{enter}/\code{out} and no \code{"noentry"}).
-\item \code{Stay} is the staying time in seconds of the first event that started in
-the video, from \code{enter} of its first row to \code{out} of its last row, which
-may be in a later video.
+\item \code{DateTime} is the recording date-time of the video in which the event
+started.
+\item \code{y} is 1 (one entry into the focal area).
+\item \code{Stay} is the staying time in seconds, from \code{enter} of the first row of
+the event to \code{out} of its last row, which may be in a later video.
 \item \code{Cens} is 1 when the last row of the event has
 \code{stayingTimeCensoringtype} \code{"right"} or \code{"both"}, and 0 otherwise.
 }
 
-When several events start in the same video, the second and later ones are
-output as additional rows with \code{y = NA} and their own \code{Stay} and \code{Cens}.
-\code{ctrest::format_stay()} then uses every event for staying time, while
-\code{ctrest::format_station_data()} drops the \code{y = NA} rows and counts each
-video once with its number of entries.
+When several animals enter in the same video, each gets its own row with
+\code{y = 1}. In addition, a video in which the species was detected but no
+event started gives one row with \code{Stay} and \code{Cens} set to \code{NA}: \code{y} is 0
+when there was no new entry (\code{"noentry"} in \code{note}, \code{memo} or
+\code{stayingTimeCensoringtype}, or only continuations of earlier events), and
+\code{NA} when there is no entry information at all (no \code{enter}/\code{out} and no
+\code{"noentry"}).
+
+The sum of \code{y} per station is the number of entries used by the REST model.
+Because a video with several entries gives several rows, the output is not
+suited to the RAD-REST model, which needs the number of entries per video.
 
 The \code{enter} and \code{out} columns are clock times (\code{H:MM:SS}). They are placed
 on the calendar day (the video's date, or the day before or after) that

@@ -67,9 +67,10 @@ head(stay_records[stay_records$Enter_cont %in% TRUE |
 ## Merge staying events with STwrapper
 
 `convert_stay()` merges rows of the same staying event across videos and
-returns the `ctrest::detection_data` format: one row per video and species,
-with the number of entries `y`, the staying time `Stay` (seconds) and the
-right-censoring indicator `Cens`.
+returns the columns of `ctrest::detection_data`: one row per staying event
+with `y = 1`, the staying time `Stay` (seconds) and the right-censoring
+indicator `Cens`, plus rows with `y = 0` for videos in which the species was
+detected without a new entry.
 
 ```{r}
 detection <- convert_stay(stay_records, term = "term1")

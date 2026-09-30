@@ -28,14 +28,21 @@ test_that("events spanning several videos are merged", {
   expect_equal(deer$Cens, c(0, NA, NA))
 })
 
-test_that("several entries in one video give one y and extra stay rows", {
+test_that("several entries in one video give one row each with y = 1", {
   res <- convert_stay(example_data())
   boar <- res[res$Species == "boar", ]
-  expect_equal(boar$y, c(2L, NA, 0L))
-  # the second event continues into the next video with the same sp_ID
+  expect_equal(boar$y, c(1L, 1L, 0L))
+  # the first event continues into the next video with the same sp_ID
   expect_equal(boar$Stay, c(49, 5, NA))
   expect_equal(boar$Cens, c(1, 0, NA))
   expect_equal(boar$DateTime[1], boar$DateTime[2])
+})
+
+test_that("rows with a staying time always have y = 1", {
+  set.seed(5)
+  res <- convert_stay(simulate_stay_data(n_station = 5, days = 30))
+  expect_true(all(res$y[!is.na(res$Stay)] == 1L))
+  expect_true(all(is.na(res$Stay[res$y %in% 0L])))
 })
 
 test_that("detections without an entry get y 0 or NA", {
