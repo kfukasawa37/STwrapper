@@ -20,7 +20,8 @@ remotes::install_github("kfukasawa37/STwrapper")
 library(STwrapper)
 
 path <- system.file("extdata", "example_stay.csv", package = "STwrapper")
-detection <- convert_stay(path, season = "2024")
+stay <- read.csv(path)
+detection <- convert_stay(stay, season = "2024")
 write.csv(detection, "detection_data.csv", row.names = FALSE)
 ```
 

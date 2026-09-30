@@ -32,8 +32,8 @@
 #' puts them closest to the video's recording time, so events around midnight
 #' are handled correctly.
 #'
-#' @param data A data frame in the staying time input format, or a path to a
-#'   CSV file in that format.
+#' @param data A data frame in the staying time input format, as read by
+#'   [utils::read.csv()].
 #' @param col_station Column used as `Station`. Default `"deploymentID"`.
 #' @param col_species Column used as `Species`. Default `"species1"`.
 #' @param season Value for the `Season` column: either a single value used for
@@ -47,19 +47,15 @@
 #'
 #' @examples
 #' path <- system.file("extdata", "example_stay.csv", package = "STwrapper")
-#' convert_stay(path)
+#' convert_stay(read.csv(path))
 #' @export
 convert_stay <- function(data,
                          col_station = "deploymentID",
                          col_species = "species1",
                          season = NA,
                          tz = "UTC") {
-  if (is.character(data) && length(data) == 1) {
-    data <- utils::read.csv(data, colClasses = "character",
-                            na.strings = c("", "NA"), check.names = FALSE)
-  }
   if (!is.data.frame(data)) {
-    stop("'data' must be a data frame or a path to a CSV file.", call. = FALSE)
+    stop("'data' must be a data frame.", call. = FALSE)
   }
 
   required <- c("video_name", "enter", "out", "stayingTimeCensoringtype",

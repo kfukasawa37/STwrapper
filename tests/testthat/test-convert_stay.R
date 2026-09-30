@@ -1,5 +1,5 @@
-example_path <- function() {
-  system.file("extdata", "example_stay.csv", package = "STwrapper")
+example_data <- function() {
+  read.csv(system.file("extdata", "example_stay.csv", package = "STwrapper"))
 }
 
 test_that("parse_video_datetime reads yymmdd_HHMMSS from file names", {
@@ -9,13 +9,13 @@ test_that("parse_video_datetime reads yymmdd_HHMMSS from file names", {
 })
 
 test_that("output has the ctrest detection data columns", {
-  res <- convert_stay(example_path())
+  res <- convert_stay(example_data())
   expect_named(res, c("Season", "Station", "File", "DateTimeCorrected",
                       "Species", "Enter", "Stay", "RightCens"))
 })
 
 test_that("events spanning several videos are merged", {
-  res <- convert_stay(example_path())
+  res <- convert_stay(example_data())
 
   deer <- res[res$Species == "deer", ]
   expect_equal(deer$File, c("camA_240601_235950_00010002.MOV",
@@ -29,7 +29,7 @@ test_that("events spanning several videos are merged", {
 })
 
 test_that("continuations join the event with the same sp_ID", {
-  res <- convert_stay(example_path())
+  res <- convert_stay(example_data())
   boar <- res[res$Species == "boar" & res$Enter %in% 1L, ]
   boar <- boar[order(boar$Stay), ]
   expect_equal(boar$Stay, c(5, 49))
@@ -37,7 +37,7 @@ test_that("continuations join the event with the same sp_ID", {
 })
 
 test_that("detections without an entry get Enter 0 or NA", {
-  res <- convert_stay(example_path())
+  res <- convert_stay(example_data())
   expect_true(is.na(res$Enter[res$Species == "hito"]))
   fox <- res[res$Species == "fox", ]
   expect_equal(fox$Enter, c(0L, 1L))
@@ -45,18 +45,22 @@ test_that("detections without an entry get Enter 0 or NA", {
 })
 
 test_that("season can be a constant or a column", {
-  res <- convert_stay(example_path(), season = "S2024")
+  res <- convert_stay(example_data(), season = "S2024")
   expect_true(all(res$Season == "S2024"))
-  d <- utils::read.csv(example_path(), colClasses = "character")
+  d <- example_data()
   d$term <- "T1"
   expect_true(all(convert_stay(d, season = "term")$Season == "T1"))
 })
 
 test_that("unmatched Enter_cont warns and starts a new event", {
-  d <- utils::read.csv(example_path(), colClasses = "character")
+  d <- example_data()
   d <- d[d$id != "2", ]
   expect_warning(res <- convert_stay(d), "no open event")
   deer <- res[res$Species == "deer", ]
   expect_equal(deer$Enter, c(1L, 0L))
   expect_equal(deer$Stay, c(38, NA))
+})
+
+test_that("a file path is rejected", {
+  expect_error(convert_stay("example_stay.csv"), "must be a data frame")
 })

@@ -13,8 +13,8 @@ convert_stay(
 )
 }
 \arguments{
-\item{data}{A data frame in the staying time input format, or a path to a
-CSV file in that format.}
+\item{data}{A data frame in the staying time input format, as read by
+\code{\link[utils:read.table]{utils::read.csv()}}.}
 
 \item{col_station}{Column used as \code{Station}. Default \code{"deploymentID"}.}
 
@@ -69,5 +69,5 @@ are handled correctly.
 }
 \examples{
 path <- system.file("extdata", "example_stay.csv", package = "STwrapper")
-convert_stay(path)
+convert_stay(read.csv(path))
 }
