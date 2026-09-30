@@ -10,7 +10,7 @@ convert_stay(
   col_species = "species1",
   col_datetime = "DateTime",
   col_file = "video_name",
-  season = NA,
+  term = NA,
   tz = "UTC"
 )
 }
@@ -27,22 +27,22 @@ convert_stay(
 
 \item{col_file}{Column with the video file name. Default \code{"video_name"}.}
 
-\item{season}{Value for the \code{Season} column: either a single value used for
+\item{term}{Value for the \code{Term} column: either a single value used for
 all rows or the name of a column in \code{data}. Default \code{NA}.}
 
 \item{tz}{Time zone used to interpret the date-times. Default \code{"UTC"}.}
 }
 \value{
-A data frame with columns \code{Season}, \code{Station}, \code{File},
-\code{DateTimeCorrected} (character, \verb{yyyy/mm/dd HH:MM:SS}), \code{Species},
-\code{Enter} (integer), \code{Stay} (numeric, seconds) and \code{RightCens} (logical),
-ordered by station and date-time.
+A data frame with columns \code{Station} (character), \code{DateTime}
+(POSIXct), \code{Term}, \code{Species} (character), \code{y} (integer), \code{Stay}
+(numeric, seconds) and \code{Cens} (numeric, 0 or 1), ordered by station and
+date-time.
 }
 \description{
 Converts a per-video staying time table (one row per animal and video, with
 \code{enter} / \code{out} clock times) into the detection data format used by the
-'ctrest' package (\code{Season}, \code{Station}, \code{File}, \code{DateTimeCorrected},
-\code{Species}, \code{Enter}, \code{Stay}, \code{RightCens}).
+'ctrest' package (\code{Station}, \code{DateTime}, \code{Term}, \code{Species}, \code{y}, \code{Stay},
+\code{Cens}), as in \code{ctrest::detection_data}.
 }
 \details{
 Required columns are \code{enter}, \code{out}, \code{stayingTimeCensoringtype},
@@ -52,7 +52,7 @@ Other columns such as \code{Enter_new}, \code{sp_ID}, \code{note} and \code{memo
 present, and any further columns are ignored. When the date-time column is
 missing or empty, the date-time is read from the file name (see
 \code{\link[=parse_video_datetime]{parse_video_datetime()}}). When the file name column is missing, videos are
-identified by their date-time and \code{File} is \code{NA}.
+identified by their date-time.
 
 A staying event that spans several videos is recorded as several rows in
 the input: the first row has \code{Enter_new = TRUE} and each row in a following
@@ -62,22 +62,26 @@ video has \code{Enter_cont = TRUE}. For each station and species, a row with
 previous video in which the same species appeared. When several such events
 are open, the one with the same \code{sp_ID} is preferred, then the earliest.
 
-Each merged event becomes one output row:
+The output has one row per video and species:
 \itemize{
-\item \code{File} and \code{DateTimeCorrected} are those of the first video of the event.
-\item \code{Enter} is 1.
-\item \code{Stay} is the time in seconds from \code{enter} of the first row to \code{out} of
-the last row of the event.
-\item \code{RightCens} is \code{TRUE} when the last row of the event has
-\code{stayingTimeCensoringtype} \code{"right"} or \code{"both"}.
+\item \code{DateTime} is the recording date-time of the video.
+\item \code{y} is the number of staying events that started in the video (entries
+into the focal area). It is 0 when the species was detected without a new
+entry (\code{"noentry"} in \code{note}, \code{memo} or \code{stayingTimeCensoringtype}, or
+only continuations of earlier events), and \code{NA} when there is no entry
+information at all (no \code{enter}/\code{out} and no \code{"noentry"}).
+\item \code{Stay} is the staying time in seconds of the first event that started in
+the video, from \code{enter} of its first row to \code{out} of its last row, which
+may be in a later video.
+\item \code{Cens} is 1 when the last row of the event has
+\code{stayingTimeCensoringtype} \code{"right"} or \code{"both"}, and 0 otherwise.
 }
 
-Videos in which a species was detected but no event started (for example
-\code{"noentry"} in \code{note}, \code{memo} or \code{stayingTimeCensoringtype}, or only
-continuations of earlier events) are output as one row with \code{Enter = 0}
-and \code{Stay} / \code{RightCens} set to \code{NA}. Detections
-without any entry information (no \code{enter}/\code{out} and no \code{"noentry"})
-get \code{Enter = NA}.
+When several events start in the same video, the second and later ones are
+output as additional rows with \code{y = NA} and their own \code{Stay} and \code{Cens}.
+\code{ctrest::format_stay()} then uses every event for staying time, while
+\code{ctrest::format_station_data()} drops the \code{y = NA} rows and counts each
+video once with its number of entries.
 
 The \code{enter} and \code{out} columns are clock times (\code{H:MM:SS}). They are placed
 on the calendar day (the video's date, or the day before or after) that
