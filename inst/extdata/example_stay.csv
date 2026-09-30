@@ -1,0 +1,10 @@
+id,deploymentID,video_name,DateTime,species1,number1,note,sp_ID,enter,out,stayingTimeCensoringtype,memo,Enter_new,Enter_cont
+1,camA,camA_240601_120000_00010001.MOV,,hito,1,,,,,,,,
+2,camA,camA_240601_235950_00010002.MOV,,deer,1,,1,23:59:40,23:59:59,right,,TRUE,FALSE
+3,camA,camA_240602_000030_00020003.MOV,,deer,1,,1,0:00:02,0:00:30,both,,FALSE,TRUE
+4,camA,camA_240602_000100_00020004.MOV,,deer,1,,1,0:00:32,0:00:40,left,,FALSE,TRUE
+5,camA,camA_240603_080000_00030005.MOV,,boar,2,,1,7:59:40,7:59:59,right,,TRUE,FALSE
+5,camA,camA_240603_080000_00030005.MOV,,boar,2,,2,7:59:45,7:59:50,complete,,TRUE,FALSE
+6,camA,camA_240603_080030_00030006.MOV,,boar,1,,1,8:00:01,8:00:29,right,,FALSE,TRUE
+7,camB,camB_240605_101010_00050001.MOV,,fox,1,,,,,,noentry,,
+8,camB,camB_240605_101100_00050002.MOV,,fox,1,,1,10:10:50,10:10:58,complete,,TRUE,FALSE
