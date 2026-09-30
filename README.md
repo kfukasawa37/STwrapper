@@ -27,20 +27,29 @@ write.csv(detection, "detection_data.csv", row.names = FALSE)
 
 ## Input format
 
-One row per animal (or species) and video. Columns used:
+A data frame (for example from `read.csv()`) with one row per animal (or
+species) and video. Other columns may be present and are ignored.
+
+Required columns:
 
 | Column | Content |
 |---|---|
-| `video_name` | File name `<camera>_yymmdd_HHMMSS_....MOV` |
-| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS`. If empty, it is taken from `video_name`. |
 | `deploymentID` | Station (change with `col_station`) |
 | `species1` | Species (change with `col_species`) |
-| `sp_ID` | Individual number within the video |
 | `enter`, `out` | Clock times (`H:MM:SS`) when the animal entered and left the focal area |
 | `stayingTimeCensoringtype` | `complete`, `left`, `right` or `both` |
-| `Enter_new` | `TRUE` on the first row of a staying event |
 | `Enter_cont` | `TRUE` when the animal continues staying from the previous video |
-| `note` / `memo` | `noentry` for a detection without entry into the focal area |
+| `DateTime` and/or `video_name` | At least one of them (see below) |
+
+Optional columns:
+
+| Column | Content |
+|---|---|
+| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS` (change with `col_datetime`). If missing or empty, it is read from `video_name`. |
+| `video_name` | File name `<camera>_yymmdd_HHMMSS_....MOV` (change with `col_file`). If missing, videos are identified by `DateTime` and `File` is `NA`. |
+| `Enter_new` | `TRUE` on the first row of a staying event (not needed for the conversion) |
+| `sp_ID` | Individual number within the video, used to pick the right event when several are continued |
+| `note`, `memo` | `noentry` for a detection without entry into the focal area |
 
 ## Output format
 
@@ -60,7 +69,7 @@ One row per animal (or species) and video. Columns used:
 For each station and species, a row with `Enter_cont = TRUE` is joined to an
 event that was still in view (`right` or `both`) at the end of the previous
 video of the same species. If several events are open, the one with the same
-`sp_ID` is used first. A staying event therefore becomes a single row even if
+`sp_ID` is used first (or the earliest one when there is no `sp_ID`). A staying event therefore becomes a single row even if
 it spans many videos. Each event gets its own row, so a video with two entries
 gives two rows with `Enter = 1`; summing `Enter` per video gives the number of
 passes.

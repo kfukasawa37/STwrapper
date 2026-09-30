@@ -5,6 +5,15 @@
 #' 'ctrest' package (`Season`, `Station`, `File`, `DateTimeCorrected`,
 #' `Species`, `Enter`, `Stay`, `RightCens`).
 #'
+#' Required columns are `enter`, `out`, `stayingTimeCensoringtype`,
+#' `Enter_cont`, the station and species columns, and at least one of the
+#' date-time column (`DateTime`) and the file name column (`video_name`).
+#' Other columns such as `Enter_new`, `sp_ID`, `note` and `memo` are used when
+#' present, and any further columns are ignored. When the date-time column is
+#' missing or empty, the date-time is read from the file name (see
+#' [parse_video_datetime()]). When the file name column is missing, videos are
+#' identified by their date-time and `File` is `NA`.
+#'
 #' A staying event that spans several videos is recorded as several rows in
 #' the input: the first row has `Enter_new = TRUE` and each row in a following
 #' video has `Enter_cont = TRUE`. For each station and species, a row with
@@ -23,7 +32,8 @@
 #'
 #' Videos in which a species was detected but no event started (for example
 #' `"noentry"` in `note`, `memo` or `stayingTimeCensoringtype`, or only
-#' continuations of earlier events) are output as one row with `Enter = 0` and `Stay` / `RightCens` set to `NA`. Detections
+#' continuations of earlier events) are output as one row with `Enter = 0`
+#' and `Stay` / `RightCens` set to `NA`. Detections
 #' without any entry information (no `enter`/`out` and no `"noentry"`)
 #' get `Enter = NA`.
 #'
@@ -36,6 +46,9 @@
 #'   [utils::read.csv()].
 #' @param col_station Column used as `Station`. Default `"deploymentID"`.
 #' @param col_species Column used as `Species`. Default `"species1"`.
+#' @param col_datetime Column with the recording date-time of each video
+#'   (`yyyy/mm/dd HH:MM:SS`). Default `"DateTime"`.
+#' @param col_file Column with the video file name. Default `"video_name"`.
 #' @param season Value for the `Season` column: either a single value used for
 #'   all rows or the name of a column in `data`. Default `NA`.
 #' @param tz Time zone used to interpret the date-times. Default `"UTC"`.
@@ -52,31 +65,40 @@
 convert_stay <- function(data,
                          col_station = "deploymentID",
                          col_species = "species1",
+                         col_datetime = "DateTime",
+                         col_file = "video_name",
                          season = NA,
                          tz = "UTC") {
   if (!is.data.frame(data)) {
     stop("'data' must be a data frame.", call. = FALSE)
   }
 
-  required <- c("video_name", "enter", "out", "stayingTimeCensoringtype",
-                "Enter_new", "Enter_cont", col_station, col_species)
+  required <- c("enter", "out", "stayingTimeCensoringtype", "Enter_cont",
+                col_station, col_species)
   missing <- setdiff(required, names(data))
   if (length(missing) > 0) {
     stop("Column(s) not found in 'data': ", paste(missing, collapse = ", "),
          call. = FALSE)
   }
+  has_file <- col_file %in% names(data)
+  if (!has_file && !col_datetime %in% names(data)) {
+    stop(sprintf("'data' needs a date-time column ('%s') or a file name column ('%s').",
+                 col_datetime, col_file), call. = FALSE)
+  }
+  optional_col <- function(col) {
+    if (col %in% names(data)) as_chr(data[[col]]) else rep(NA_character_, nrow(data))
+  }
 
   d <- data.frame(
     row = seq_len(nrow(data)),
     Station = as_chr(data[[col_station]]),
-    File = as_chr(data$video_name),
+    File = optional_col(col_file),
     Species = as_chr(data[[col_species]]),
     enter = as_chr(data$enter),
     out = as_chr(data$out),
     cens = tolower(as_chr(data$stayingTimeCensoringtype)),
-    enter_new = as_lgl(data$Enter_new),
     enter_cont = as_lgl(data$Enter_cont),
-    sp_ID = if ("sp_ID" %in% names(data)) as_chr(data$sp_ID) else NA_character_,
+    sp_ID = optional_col("sp_ID"),
     stringsAsFactors = FALSE
   )
   # "noentry" marks a detection without entry into the focal area
@@ -92,19 +114,19 @@ convert_stay <- function(data,
   }
 
   # Recording date-time of each video: DateTime column if filled, else file name
-  dt <- if ("DateTime" %in% names(data)) as_chr(data$DateTime) else NA_character_
-  dt <- rep(dt, length.out = nrow(d))
-  video_dt <- as.POSIXct(dt, tz = tz,
+  video_dt <- as.POSIXct(optional_col(col_datetime), tz = tz,
                          tryFormats = c("%Y/%m/%d %H:%M:%OS", "%Y-%m-%d %H:%M:%OS",
                                         "%Y/%m/%d %H:%M", "%Y-%m-%d %H:%M"),
                          optional = TRUE)
   from_name <- is.na(video_dt)
   video_dt[from_name] <- parse_video_datetime(d$File[from_name], tz = tz)
   if (anyNA(video_dt)) {
-    stop("Could not determine the date-time of video(s): ",
-         paste(unique(d$File[is.na(video_dt)]), collapse = ", "), call. = FALSE)
+    stop("Could not determine the date-time of row(s) ",
+         paste(d$row[is.na(video_dt)], collapse = ", "), call. = FALSE)
   }
   d$video_dt <- video_dt
+  # Key identifying a video: file name, or date-time when there is none
+  d$video <- if (has_file) d$File else format(video_dt, "%Y-%m-%d %H:%M:%S", tz = tz)
 
   d <- d[!is.na(d$Species), , drop = FALSE]
   d$is_stay <- !is.na(d$enter) & !is.na(d$out)
@@ -112,7 +134,7 @@ convert_stay <- function(data,
   d$t_out <- clock_to_datetime(d$out, d$video_dt, tz)
   d$still_in <- d$cens %in% c("right", "both")
 
-  d <- d[order(d$Station, d$Species, d$video_dt, d$File, d$row), , drop = FALSE]
+  d <- d[order(d$Station, d$Species, d$video_dt, d$video, d$row), , drop = FALSE]
 
   # Assign an event id to every stay row
   d$event <- NA_integer_
@@ -120,8 +142,8 @@ convert_stay <- function(data,
   for (key in unique(paste(d$Station, d$Species, sep = "\r"))) {
     idx <- which(paste(d$Station, d$Species, sep = "\r") == key)
     open <- integer(0)  # events still in view at the end of the previous video
-    for (f in unique(d$File[idx])) {
-      vid <- idx[d$File[idx] == f]
+    for (v in unique(d$video[idx])) {
+      vid <- idx[d$video[idx] == v]
       used <- integer(0)
       for (i in vid[d$is_stay[vid]]) {
         ev <- NA_integer_
@@ -134,7 +156,7 @@ convert_stay <- function(data,
           } else {
             warning(sprintf(
               "Enter_cont = TRUE in '%s' (%s) but no open event in the previous video; treated as a new event.",
-              d$File[i], d$Species[i]), call. = FALSE)
+              d$video[i], d$Species[i]), call. = FALSE)
           }
         }
         if (is.na(ev)) {
@@ -157,6 +179,7 @@ convert_stay <- function(data,
       Season = stays$Season[first],
       Station = stays$Station[first],
       File = stays$File[first],
+      video = stays$video[first],
       video_dt = stays$video_dt[first],
       Species = stays$Species[first],
       Enter = 1L,
@@ -169,12 +192,12 @@ convert_stay <- function(data,
   events <- do.call(rbind, c(list(empty_output(tz)), ev_rows))
   if (any(events$Stay < 0, na.rm = TRUE)) {
     warning("Negative staying time in: ",
-            paste(events$File[events$Stay < 0], collapse = ", "), call. = FALSE)
+            paste(events$video[events$Stay < 0], collapse = ", "), call. = FALSE)
   }
 
   # Detections (video x species) in which no event started
-  det_key <- paste(d$Station, d$File, d$Species, sep = "\r")
-  new_key <- paste(events$Station, events$File, events$Species, sep = "\r")
+  det_key <- paste(d$Station, d$video, d$Species, sep = "\r")
+  new_key <- paste(events$Station, events$video, events$Species, sep = "\r")
   rest <- d[!det_key %in% new_key & !duplicated(det_key), , drop = FALSE]
   has_info <- vapply(det_key[!det_key %in% new_key & !duplicated(det_key)],
                      function(k) {
@@ -185,6 +208,7 @@ convert_stay <- function(data,
     Season = rest$Season,
     Station = rest$Station,
     File = rest$File,
+    video = rest$video,
     video_dt = rest$video_dt,
     Species = rest$Species,
     Enter = ifelse(has_info, 0L, NA_integer_),
@@ -194,7 +218,7 @@ convert_stay <- function(data,
   )
 
   out <- rbind(events, others)
-  out <- out[order(out$Station, out$video_dt, out$File, out$Species), , drop = FALSE]
+  out <- out[order(out$Station, out$video_dt, out$video, out$Species), , drop = FALSE]
   out$DateTimeCorrected <- format(out$video_dt, "%Y/%m/%d %H:%M:%S", tz = tz)
   out <- out[, c("Season", "Station", "File", "DateTimeCorrected", "Species",
                  "Enter", "Stay", "RightCens")]
@@ -251,7 +275,7 @@ clock_to_datetime <- function(clock, ref, tz) {
 
 empty_output <- function(tz) {
   data.frame(Season = character(0), Station = character(0), File = character(0),
-             video_dt = as.POSIXct(character(0), tz = tz), Species = character(0),
+             video = character(0), video_dt = as.POSIXct(character(0), tz = tz), Species = character(0),
              Enter = integer(0), Stay = numeric(0), RightCens = logical(0),
              stringsAsFactors = FALSE)
 }

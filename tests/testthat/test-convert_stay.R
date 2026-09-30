@@ -64,3 +64,51 @@ test_that("unmatched Enter_cont warns and starts a new event", {
 test_that("a file path is rejected", {
   expect_error(convert_stay("example_stay.csv"), "must be a data frame")
 })
+
+test_that("only the minimal columns are needed", {
+  d <- example_data()
+  minimal <- d[, c("deploymentID", "video_name", "species1", "enter", "out",
+                   "stayingTimeCensoringtype", "Enter_cont")]
+  res <- convert_stay(minimal)
+  deer <- res[res$Species == "deer", ]
+  expect_equal(deer$Stay, c(60, NA, NA))
+  expect_equal(deer$Enter, c(1L, 0L, 0L))
+})
+
+test_that("extra columns are ignored", {
+  d <- example_data()
+  d$extra <- "x"
+  expect_equal(convert_stay(d), convert_stay(example_data()))
+})
+
+test_that("video_name is not needed when DateTime is given", {
+  d <- example_data()
+  d$DateTime <- format(parse_video_datetime(d$video_name), "%Y/%m/%d %H:%M:%S")
+  d$video_name <- NULL
+  res <- convert_stay(d)
+  expect_true(all(is.na(res$File)))
+  expect_equal(res[res$Species == "deer", "Stay"], c(60, NA, NA))
+  expect_equal(res$DateTimeCorrected, convert_stay(example_data())$DateTimeCorrected)
+})
+
+test_that("DateTime or video_name is required", {
+  d <- example_data()
+  d$video_name <- NULL
+  d$DateTime <- NULL
+  expect_error(convert_stay(d), "date-time column")
+})
+
+test_that("missing required columns give an error", {
+  d <- example_data()
+  d$Enter_cont <- NULL
+  expect_error(convert_stay(d), "Enter_cont")
+})
+
+test_that("sp_ID is optional", {
+  d <- example_data()
+  d$sp_ID <- NULL
+  res <- convert_stay(d)
+  # without sp_ID the earliest open event is continued
+  boar <- res[res$Species == "boar" & res$Enter %in% 1L, ]
+  expect_equal(sort(boar$Stay), c(5, 49))
+})

@@ -8,6 +8,8 @@ convert_stay(
   data,
   col_station = "deploymentID",
   col_species = "species1",
+  col_datetime = "DateTime",
+  col_file = "video_name",
   season = NA,
   tz = "UTC"
 )
@@ -19,6 +21,11 @@ convert_stay(
 \item{col_station}{Column used as \code{Station}. Default \code{"deploymentID"}.}
 
 \item{col_species}{Column used as \code{Species}. Default \code{"species1"}.}
+
+\item{col_datetime}{Column with the recording date-time of each video
+(\verb{yyyy/mm/dd HH:MM:SS}). Default \code{"DateTime"}.}
+
+\item{col_file}{Column with the video file name. Default \code{"video_name"}.}
 
 \item{season}{Value for the \code{Season} column: either a single value used for
 all rows or the name of a column in \code{data}. Default \code{NA}.}
@@ -38,6 +45,15 @@ Converts a per-video staying time table (one row per animal and video, with
 \code{Species}, \code{Enter}, \code{Stay}, \code{RightCens}).
 }
 \details{
+Required columns are \code{enter}, \code{out}, \code{stayingTimeCensoringtype},
+\code{Enter_cont}, the station and species columns, and at least one of the
+date-time column (\code{DateTime}) and the file name column (\code{video_name}).
+Other columns such as \code{Enter_new}, \code{sp_ID}, \code{note} and \code{memo} are used when
+present, and any further columns are ignored. When the date-time column is
+missing or empty, the date-time is read from the file name (see
+\code{\link[=parse_video_datetime]{parse_video_datetime()}}). When the file name column is missing, videos are
+identified by their date-time and \code{File} is \code{NA}.
+
 A staying event that spans several videos is recorded as several rows in
 the input: the first row has \code{Enter_new = TRUE} and each row in a following
 video has \code{Enter_cont = TRUE}. For each station and species, a row with
@@ -58,7 +74,8 @@ the last row of the event.
 
 Videos in which a species was detected but no event started (for example
 \code{"noentry"} in \code{note}, \code{memo} or \code{stayingTimeCensoringtype}, or only
-continuations of earlier events) are output as one row with \code{Enter = 0} and \code{Stay} / \code{RightCens} set to \code{NA}. Detections
+continuations of earlier events) are output as one row with \code{Enter = 0}
+and \code{Stay} / \code{RightCens} set to \code{NA}. Detections
 without any entry information (no \code{enter}/\code{out} and no \code{"noentry"})
 get \code{Enter = NA}.
 
