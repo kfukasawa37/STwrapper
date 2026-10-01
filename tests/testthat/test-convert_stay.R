@@ -21,10 +21,10 @@ test_that("events spanning several videos are merged", {
   res <- convert_stay(example_data())
   deer <- res[res$Species == "deer", ]
   expect_equal(format(deer$DateTime, "%Y/%m/%d %H:%M:%S"),
-               c("2024/06/01 23:59:50", "2024/06/02 00:00:30", "2024/06/02 00:01:00"))
+               c("2024/06/01 23:59:50", "2024/06/02 00:00:15", "2024/06/02 00:00:40"))
   expect_equal(deer$y, c(1L, 0L, 0L))
-  # 23:59:40 -> 00:00:40 on the next day
-  expect_equal(deer$Stay, c(60, NA, NA))
+  # 23:59:40 -> 00:00:30 on the next day
+  expect_equal(deer$Stay, c(50, NA, NA))
   expect_equal(deer$Cens, c(0, NA, NA))
 })
 
@@ -33,7 +33,7 @@ test_that("several entries in one video give one row each with y = 1", {
   boar <- res[res$Species == "boar", ]
   expect_equal(boar$y, c(1L, 1L, 0L))
   # the first event continues into the next video with the same sp_ID
-  expect_equal(boar$Stay, c(49, 5, NA))
+  expect_equal(boar$Stay, c(43, 5, NA))
   expect_equal(boar$Cens, c(1, 0, NA))
   expect_equal(boar$DateTime[1], boar$DateTime[2])
 })
@@ -67,7 +67,7 @@ test_that("unmatched Enter_cont warns and starts a new event", {
   expect_warning(res <- convert_stay(d), "no open event")
   deer <- res[res$Species == "deer", ]
   expect_equal(deer$y, c(1L, 0L))
-  expect_equal(deer$Stay, c(38, NA))
+  expect_equal(deer$Stay, c(35, NA))
 })
 
 test_that("a file path is rejected", {
@@ -80,7 +80,7 @@ test_that("only the minimal columns are needed", {
                    "stayingTimeCensoringtype", "Enter_cont")]
   res <- convert_stay(minimal)
   deer <- res[res$Species == "deer", ]
-  expect_equal(deer$Stay, c(60, NA, NA))
+  expect_equal(deer$Stay, c(50, NA, NA))
   expect_equal(deer$y, c(1L, 0L, 0L))
 })
 
@@ -116,5 +116,5 @@ test_that("sp_ID is optional", {
   res <- convert_stay(d)
   # without sp_ID the earliest open event is continued
   boar <- res[res$Species == "boar" & !is.na(res$Stay), ]
-  expect_equal(sort(boar$Stay), c(5, 49))
+  expect_equal(sort(boar$Stay), c(5, 43))
 })
