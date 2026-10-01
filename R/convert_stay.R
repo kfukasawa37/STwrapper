@@ -43,6 +43,27 @@
 #' Because a video with several entries gives several rows, the output is not
 #' suited to the RAD-REST model, which needs the number of entries per video.
 #'
+#' The input is checked for inconsistent records, and a warning lists the rows
+#' of `data` concerned:
+#' * `stayingTimeCensoringtype` other than `"complete"`, `"left"`, `"right"`
+#'   or `"both"` on a row with `enter` and `out` (the row is treated as not
+#'   right-censored);
+#' * only one of `enter` and `out` filled (the row is not used as a stay);
+#' * `out` earlier than `enter`;
+#' * `Enter_cont = TRUE` without `enter` / `out`;
+#' * `Enter_cont = TRUE` but `stayingTimeCensoringtype` not `"left"` or
+#'   `"both"` (an animal continuing from the previous video is already in view
+#'   when the video starts);
+#' * `Enter_new` and `Enter_cont` both `TRUE`, or both `FALSE` on a row with
+#'   `enter` and `out` (only when the `Enter_new` column is present);
+#' * `Enter_cont = TRUE` but no event of the same species was still in view
+#'   (`"right"` or `"both"`) at the end of the previous video (the row is
+#'   treated as a new event).
+#'
+#' Rows that start with `"left"` or `"both"` and `Enter_cont = FALSE` (an
+#' animal that entered between two videos) are accepted without a warning; the
+#' staying time then starts at `enter` of that row.
+#'
 #' The `enter` and `out` columns are clock times (`H:MM:SS`). They are placed
 #' on the calendar day (the video's date, or the day before or after) that
 #' puts them closest to the video's recording time, so events around midnight
@@ -104,6 +125,7 @@ convert_stay <- function(data,
     out = as_chr(data$out),
     cens = tolower(as_chr(data$stayingTimeCensoringtype)),
     enter_cont = as_lgl(data$Enter_cont),
+    enter_new = if ("Enter_new" %in% names(data)) as_lgl(data$Enter_new) else NA,
     sp_ID = optional_col("sp_ID"),
     stringsAsFactors = FALSE
   )
@@ -140,11 +162,27 @@ convert_stay <- function(data,
   d$t_out <- clock_to_datetime(d$out, d$video_dt, tz)
   d$still_in <- d$cens %in% c("right", "both")
 
+  # Consistency checks on the input records
+  warn_rows(d$row[d$is_stay & !d$cens %in% c("complete", "left", "right", "both")],
+            "Unknown stayingTimeCensoringtype (not complete/left/right/both)")
+  warn_rows(d$row[xor(is.na(d$enter), is.na(d$out))],
+            "Only one of 'enter' and 'out' is given; the row is not used as a stay")
+  warn_rows(d$row[d$is_stay & d$t_out < d$t_enter], "'out' is earlier than 'enter'")
+  warn_rows(d$row[d$enter_cont %in% TRUE & !d$is_stay],
+            "Enter_cont = TRUE without 'enter' and 'out'")
+  warn_rows(d$row[d$is_stay & d$enter_cont %in% TRUE & !d$cens %in% c("left", "both")],
+            "Enter_cont = TRUE but stayingTimeCensoringtype is not left or both")
+  warn_rows(d$row[d$enter_new %in% TRUE & d$enter_cont %in% TRUE],
+            "Enter_new and Enter_cont are both TRUE")
+  warn_rows(d$row[d$is_stay & d$enter_new %in% FALSE & d$enter_cont %in% FALSE],
+            "Enter_new and Enter_cont are both FALSE")
+
   d <- d[order(d$Station, d$Species, d$video_dt, d$video, d$row), , drop = FALSE]
 
   # Assign an event id to every stay row
   d$event <- NA_integer_
   n_event <- 0L
+  unmatched <- integer(0)
   for (key in unique(paste(d$Station, d$Species, sep = "\r"))) {
     idx <- which(paste(d$Station, d$Species, sep = "\r") == key)
     open <- integer(0)  # events still in view at the end of the previous video
@@ -160,9 +198,7 @@ convert_stay <- function(data,
             same_id <- cand[d$sp_ID[last] %in% d$sp_ID[i] & !is.na(d$sp_ID[i])]
             ev <- if (length(same_id) > 0) same_id[1] else cand[1]
           } else {
-            warning(sprintf(
-              "Enter_cont = TRUE in '%s' (%s) but no open event in the previous video; treated as a new event.",
-              d$video[i], d$Species[i]), call. = FALSE)
+            unmatched <- c(unmatched, d$row[i])
           }
         }
         if (is.na(ev)) {
@@ -175,6 +211,10 @@ convert_stay <- function(data,
       open <- unique(d$event[vid][d$is_stay[vid] & d$still_in[vid]])
     }
   }
+
+  warn_rows(unmatched, paste(
+    "Enter_cont = TRUE but no open event (right or both) in the previous video",
+    "of the same species; treated as a new event"))
 
   # One record per event, attached to the video in which it started
   stays <- d[d$is_stay, , drop = FALSE]
@@ -282,6 +322,15 @@ empty_output <- function(tz) {
              video_dt = as.POSIXct(character(0), tz = tz), Term = character(0),
              Species = character(0), y = integer(0), Stay = numeric(0),
              Cens = numeric(0), stringsAsFactors = FALSE)
+}
+
+# Warn once for a set of problem rows of the input
+warn_rows <- function(rows, msg) {
+  rows <- sort(unique(rows))
+  if (length(rows) == 0) return(invisible())
+  shown <- paste(utils::head(rows, 10), collapse = ", ")
+  if (length(rows) > 10) shown <- paste0(shown, ", ... (", length(rows), " rows)")
+  warning(sprintf("%s: row(s) %s of 'data'.", msg, shown), call. = FALSE)
 }
 
 as_chr <- function(x) {

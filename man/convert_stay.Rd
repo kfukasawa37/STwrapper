@@ -85,6 +85,29 @@ The sum of \code{y} per station is the number of entries used by the REST model.
 Because a video with several entries gives several rows, the output is not
 suited to the RAD-REST model, which needs the number of entries per video.
 
+The input is checked for inconsistent records, and a warning lists the rows
+of \code{data} concerned:
+\itemize{
+\item \code{stayingTimeCensoringtype} other than \code{"complete"}, \code{"left"}, \code{"right"}
+or \code{"both"} on a row with \code{enter} and \code{out} (the row is treated as not
+right-censored);
+\item only one of \code{enter} and \code{out} filled (the row is not used as a stay);
+\item \code{out} earlier than \code{enter};
+\item \code{Enter_cont = TRUE} without \code{enter} / \code{out};
+\item \code{Enter_cont = TRUE} but \code{stayingTimeCensoringtype} not \code{"left"} or
+\code{"both"} (an animal continuing from the previous video is already in view
+when the video starts);
+\item \code{Enter_new} and \code{Enter_cont} both \code{TRUE}, or both \code{FALSE} on a row with
+\code{enter} and \code{out} (only when the \code{Enter_new} column is present);
+\item \code{Enter_cont = TRUE} but no event of the same species was still in view
+(\code{"right"} or \code{"both"}) at the end of the previous video (the row is
+treated as a new event).
+}
+
+Rows that start with \code{"left"} or \code{"both"} and \code{Enter_cont = FALSE} (an
+animal that entered between two videos) are accepted without a warning; the
+staying time then starts at \code{enter} of that row.
+
 The \code{enter} and \code{out} columns are clock times (\code{H:MM:SS}). They are placed
 on the calendar day (the video's date, or the day before or after) that
 puts them closest to the video's recording time, so events around midnight

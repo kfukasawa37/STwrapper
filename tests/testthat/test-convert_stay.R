@@ -118,3 +118,48 @@ test_that("sp_ID is optional", {
   boar <- res[res$Species == "boar" & !is.na(res$Stay), ]
   expect_equal(sort(boar$Stay), c(5, 43))
 })
+
+test_that("consistent data give no warnings", {
+  expect_no_warning(convert_stay(example_data()))
+  set.seed(6)
+  expect_no_warning(convert_stay(simulate_stay_data(n_station = 10, days = 60)))
+})
+
+test_that("Enter_cont rows that are not left or both censored are reported", {
+  d <- example_data()
+  d$stayingTimeCensoringtype[d$id == 6] <- "right"
+  expect_match(capture_warnings(convert_stay(d)), "not left or both: row[(]s[)] 7 of 'data'", all = FALSE)
+})
+
+test_that("inconsistent records are reported with their rows", {
+  d <- example_data()
+  d$stayingTimeCensoringtype[2] <- "rihgt"
+  expect_match(capture_warnings(convert_stay(d)), "Unknown stayingTimeCensoringtype.*row[(]s[)] 2 ", all = FALSE)
+
+  d <- example_data()
+  d$out[9] <- NA
+  expect_match(capture_warnings(convert_stay(d)), "Only one of 'enter' and 'out'.*row[(]s[)] 9 ", all = FALSE)
+
+  d <- example_data()
+  d$out[9] <- "10:10:40"
+  expect_match(capture_warnings(convert_stay(d)), "'out' is earlier than 'enter'.*row[(]s[)] 9 ", all = FALSE)
+
+  d <- example_data()
+  d$Enter_new[3] <- TRUE
+  expect_match(capture_warnings(convert_stay(d)), "both TRUE.*row[(]s[)] 3 ", all = FALSE)
+
+  d <- example_data()
+  d$Enter_new[9] <- FALSE
+  expect_match(capture_warnings(convert_stay(d)), "both FALSE.*row[(]s[)] 9 ", all = FALSE)
+
+  d <- example_data()
+  d$Enter_cont[1] <- TRUE
+  expect_match(capture_warnings(convert_stay(d)), "without 'enter' and 'out'.*row[(]s[)] 1 ", all = FALSE)
+})
+
+test_that("an animal entering between videos is accepted without a warning", {
+  d <- example_data()
+  d$stayingTimeCensoringtype[9] <- "left"
+  expect_no_warning(res <- convert_stay(d))
+  expect_equal(res$Stay[res$Species == "fox"], c(NA, 8))
+})

@@ -115,6 +115,13 @@ station is the number of entries used by the REST model. Because the number
 of entries per video is spread over several rows, the output is meant for the
 REST model, not for RAD-REST.
 
+`convert_stay()` also checks the records and warns, with the row numbers of
+the input, about inconsistencies such as an unknown censoring type, `out`
+earlier than `enter`, `Enter_cont = TRUE` on a row that is not `left` or
+`both` censored, or a continued row without a matching `right` / `both` row in
+the previous video. Left-censored new entries (animals that entered between
+two videos) are accepted.
+
 ## License
 
 MIT

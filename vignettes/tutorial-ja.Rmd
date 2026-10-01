@@ -733,14 +733,34 @@ detection <- convert_stay(
 # 3. 以降はこのチュートリアルの ctrest の手順と同じ
 ```
 
+## 入力データのチェック
+
+`convert_stay()` は、記録の矛盾を見つけると **警告（Warning）** を出します。
+警告には、問題のある行が `row(s) 3, 7 of 'data'` のように
+**データフレームの行番号** で示されます（`read.csv()` で読んだ場合、
+CSV の 1 行目は見出しなので、CSV ファイルでは行番号 + 1 行目にあたります）。
+変換は止まらずに続きますが、警告が出たら元の記録を見直してください。
+
+| 警告の始まり | 意味と対処 |
+|---|---|
+| `Unknown stayingTimeCensoringtype` | 打ち切りの種類が `complete` / `left` / `right` / `both` 以外（つづりの誤りなど） |
+| `Only one of 'enter' and 'out' is given` | `enter` と `out` の片方だけが入力されている。この行は滞在として使われない |
+| `'out' is earlier than 'enter'` | `out` が `enter` より早い。時刻の入力ミスを確認する |
+| `Enter_cont = TRUE without 'enter' and 'out'` | 続きの記録なのに時刻が入っていない |
+| `Enter_cont = TRUE but stayingTimeCensoringtype is not left or both` | 前の動画から続いている個体は動画の開始時点ですでにいるので、打ち切りは `left` か `both` のはず |
+| `Enter_new and Enter_cont are both TRUE` / `both FALSE` | 新しい滞在か続きの滞在か、どちらか一方だけを `TRUE` にする |
+| `Enter_cont = TRUE but no open event` | 続きの記録なのに、前の動画に同じ種の `right` / `both` の記録がない。前の動画の打ち切りの記入を確認する（この行は新しい滞在として扱われる） |
+
+一方、`Enter_new = TRUE` で打ち切りが `left` や `both` の行は警告になりません。
+動画と動画のあいだのラグに入ってきた個体で、入るところが映っていないのは正常だからです。
+（このような左打ち切りは、密度推定では無視して構いません。）
+
 ## よくあるつまずき
 
 | 症状 | 原因と対処 |
 |---|---|
 | `Column(s) not found in 'data'` | 必須の列がない、または列名が違う。`col_station`、`col_species` などで列名を指定する |
 | `'data' must be a data frame` | ファイルのパスを渡している。先に `read.csv()` で読み込む |
-| `Enter_cont = TRUE ... but no open event` という警告 | 続きの記録なのに、前の動画で `right` / `both` の記録が見つからない。前の動画の打ち切りの記入を確認する（この行は新しい滞在として扱われる） |
-| `Negative staying time` という警告 | `enter` より `out` が早い。時刻の入力ミスを確認する |
 | `Could not determine the date-time` | `DateTime` が空で、`video_name` からも日時を読み取れない |
 | ctrest で `Stay <= 0` の行が除かれる | `enter` と `out` が同じ秒。滞在時間 0 秒は解析に使えない |
 
