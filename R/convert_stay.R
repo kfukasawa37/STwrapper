@@ -6,13 +6,13 @@
 #' `Cens`), as in `ctrest::detection_data`.
 #'
 #' Required columns are `enter`, `out`, `stayingTimeCensoringtype`,
-#' `Enter_cont`, the station and species columns, and at least one of the
-#' date-time column (`DateTime`) and the file name column (`video_name`).
-#' Other columns such as `Enter_new`, `sp_ID`, `note` and `memo` are used when
-#' present, and any further columns are ignored. When the date-time column is
-#' missing or empty, the date-time is read from the file name (see
-#' [parse_video_datetime()]). When the file name column is missing, videos are
-#' identified by their date-time.
+#' `Enter_cont`, the station and species columns, and the recording date-time
+#' (`DateTime`), which must be filled on every row. Use [fill_datetime()]
+#' beforehand to fill empty date-times from the file names. Other columns such
+#' as `video_name`, `Enter_new`, `sp_ID`, `note` and `memo` are used when
+#' present, and any further columns are ignored. Videos are identified by the
+#' file name when the file name column is present, and by their date-time
+#' otherwise.
 #'
 #' A staying event that spans several videos is recorded as several rows in
 #' the input: the first row has `Enter_new = TRUE` and each row in a following
@@ -75,7 +75,8 @@
 #' @param col_species Column used as `Species`. Default `"species1"`.
 #' @param col_datetime Column with the recording date-time of each video
 #'   (`yyyy/mm/dd HH:MM:SS`). Default `"DateTime"`.
-#' @param col_file Column with the video file name. Default `"video_name"`.
+#' @param col_file Column with the video file name, used to tell videos apart
+#'   when present. Default `"video_name"`.
 #' @param term Value for the `Term` column: either a single value used for
 #'   all rows or the name of a column in `data`. Default `NA`.
 #' @param tz Time zone used to interpret the date-times. Default `"UTC"`.
@@ -101,17 +102,13 @@ convert_stay <- function(data,
   }
 
   required <- c("enter", "out", "stayingTimeCensoringtype", "Enter_cont",
-                col_station, col_species)
+                col_station, col_species, col_datetime)
   missing <- setdiff(required, names(data))
   if (length(missing) > 0) {
     stop("Column(s) not found in 'data': ", paste(missing, collapse = ", "),
          call. = FALSE)
   }
   has_file <- col_file %in% names(data)
-  if (!has_file && !col_datetime %in% names(data)) {
-    stop(sprintf("'data' needs a date-time column ('%s') or a file name column ('%s').",
-                 col_datetime, col_file), call. = FALSE)
-  }
   optional_col <- function(col) {
     if (col %in% names(data)) as_chr(data[[col]]) else rep(NA_character_, nrow(data))
   }
@@ -141,17 +138,8 @@ convert_stay <- function(data,
     rep(term, length.out = nrow(d))
   }
 
-  # Recording date-time of each video: DateTime column if filled, else file name
-  video_dt <- as.POSIXct(optional_col(col_datetime), tz = tz,
-                         tryFormats = c("%Y/%m/%d %H:%M:%OS", "%Y-%m-%d %H:%M:%OS",
-                                        "%Y/%m/%d %H:%M", "%Y-%m-%d %H:%M"),
-                         optional = TRUE)
-  from_name <- is.na(video_dt)
-  video_dt[from_name] <- parse_video_datetime(d$File[from_name], tz = tz)
-  if (anyNA(video_dt)) {
-    stop("Could not determine the date-time of row(s) ",
-         paste(d$row[is.na(video_dt)], collapse = ", "), call. = FALSE)
-  }
+  video_dt <- video_datetime(data[[col_datetime]], tz)
+  check_datetime(video_dt, data[[col_datetime]], col_datetime)
   d$video_dt <- video_dt
   # Key identifying a video: file name, or date-time when there is none
   d$video <- if (has_file) d$File else format(video_dt, "%Y-%m-%d %H:%M:%S", tz = tz)
@@ -270,26 +258,6 @@ convert_stay <- function(data,
   out
 }
 
-#' Parse the recording date-time from a video file name
-#'
-#' Extracts the date-time from file names of the form
-#' `<camera>_yymmdd_HHMMSS_...` (for example
-#' `c15_240501_105240_05010001.MOV` gives 2024-05-01 10:52:40).
-#'
-#' @param x Character vector of file names.
-#' @param tz Time zone of the returned date-times. Default `"UTC"`.
-#' @return A `POSIXct` vector; `NA` where the name does not match.
-#' @examples
-#' parse_video_datetime("c15_240501_105240_05010001.MOV")
-#' @export
-parse_video_datetime <- function(x, tz = "UTC") {
-  m <- regmatches(x, regexec("^[^_]+_(\\d{6})_(\\d{6})_", x))
-  s <- vapply(m, function(v) {
-    if (length(v) == 3) paste(v[2], v[3]) else NA_character_
-  }, character(1))
-  as.POSIXct(s, format = "%y%m%d %H%M%S", tz = tz)
-}
-
 # Place clock times ("H:MM:SS") on the day closest to the reference date-time
 clock_to_datetime <- function(clock, ref, tz) {
   res <- rep(as.POSIXct(NA, tz = tz), length(clock))
@@ -322,6 +290,39 @@ empty_output <- function(tz) {
              video_dt = as.POSIXct(character(0), tz = tz), Term = character(0),
              Species = character(0), y = integer(0), Stay = numeric(0),
              Cens = numeric(0), stringsAsFactors = FALSE)
+}
+
+# Recording date-time of each video from the date-time column
+video_datetime <- function(x, tz) {
+  x <- as_chr(x)
+  dt <- rep(as.POSIXct(NA, tz = tz), length(x))
+  for (f in c("%Y/%m/%d %H:%M:%OS", "%Y-%m-%d %H:%M:%OS",
+              "%Y/%m/%d %H:%M", "%Y-%m-%d %H:%M")) {
+    todo <- is.na(dt) & !is.na(x)
+    if (!any(todo)) break
+    dt[todo] <- as.POSIXct(x[todo], format = f, tz = tz)
+  }
+  dt
+}
+
+# Stop when a recording date-time is empty or cannot be read
+check_datetime <- function(dt, x, col_datetime, rows = which(is.na(dt))) {
+  if (length(rows) == 0) return(invisible())
+  empty <- rows[is.na(as_chr(x)[rows])]
+  bad <- setdiff(rows, empty)
+  msg <- character(0)
+  if (length(empty) > 0) {
+    msg <- c(msg, sprintf(
+      "'%s' is empty in row(s) %s of 'data'. Fill it first, for example from the file names with fill_datetime().",
+      col_datetime, paste(utils::head(empty, 10), collapse = ", ")))
+  }
+  if (length(bad) > 0) {
+    msg <- c(msg, sprintf(
+      "'%s' could not be read in row(s) %s of 'data' (use yyyy/mm/dd HH:MM:SS).",
+      col_datetime, paste(utils::head(bad, 10), collapse = ", ")))
+  }
+  stop(paste(msg, collapse = "
+"), call. = FALSE)
 }
 
 # Warn once for a set of problem rows of the input

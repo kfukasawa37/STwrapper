@@ -216,10 +216,10 @@ STwrapper に渡すのは、**動物 1 個体 × 動画 1 本を 1 行** とし�
 | `out` | フォーカスエリアから出た時刻 | `23:59:50` |
 | `stayingTimeCensoringtype` | 打ち切りの種類（下表） | `right` |
 | `Enter_cont` | 前の動画から続いている滞在なら `TRUE` | `FALSE` |
-| `DateTime` または `video_name` | 動画の撮影日時、またはファイル名 | `2024/06/01 23:59:50` |
+| `DateTime` | 動画の撮影日時（すべての行に入っていること） | `2024/06/01 23:59:50` |
 
-あると使われる列：`Enter_new`（新しい滞在の始まり）、`sp_ID`（動画内の個体番号）、
-`note` / `memo`（フォーカスエリアに入らなかったときは `noentry`）。
+あると使われる列：`video_name`（ファイル名。動画の区別に使う）、`Enter_new`（新しい滞在の始まり）、
+`sp_ID`（動画内の個体番号）、`note` / `memo`（フォーカスエリアに入らなかったときは `noentry`）。
 
 `stayingTimeCensoringtype` は、滞在の始まりと終わりが動画に映っているかを表します。
 
@@ -230,18 +230,16 @@ STwrapper に渡すのは、**動物 1 個体 × 動画 1 本を 1 行** とし�
 | `right` | 動画の終了時点でまだいた（出るところが映っていない） |
 | `both` | 動画の最初から最後までずっといた |
 
-`DateTime` が空欄の場合は、`video_name` の `<カメラ名>_yymmdd_HHMMSS_...` の部分から
-日時を読み取ります。このチュートリアルのデータでは、ファイル名の時刻は
-**動画の撮影が終わった時刻** で、20 秒の動画はその 20 秒前から撮影されています。
-
 カメラの時計は日本時間（JST）で動いているので、タイムゾーンを `tz = "Asia/Tokyo"` と
 指定します。指定しないと UTC（協定世界時）として扱われ、日時が 9 時間ずれた
 意味になってしまいます。このチュートリアルでは、日時を扱う関数すべてに
 `tz = "Asia/Tokyo"` を付けます。
 
-```{r}
-parse_video_datetime("c15_240501_105240_05010001.MOV", tz = "Asia/Tokyo")
-```
+このチュートリアルのデータでは、`DateTime` とファイル名の時刻は **動画の撮影が終わった時刻** で、
+20 秒の動画はその 20 秒前から撮影されています。
+
+撮影日時がファイル名にしかない場合や、`enter` / `out` を動画開始からの秒数で記録している場合は、
+文末の[付録](#appendix)の方法で、先にこの形に整えてください。
 
 ## サンプルデータを見てみる
 
@@ -251,7 +249,7 @@ parse_video_datetime("c15_240501_105240_05010001.MOV", tz = "Asia/Tokyo")
 ```{r}
 path <- system.file("extdata", "example_stay.csv", package = "STwrapper")
 example <- read.csv(path)
-example[, c("deploymentID", "video_name", "species1", "sp_ID",
+example[, c("deploymentID", "video_name", "DateTime", "species1", "sp_ID",
             "enter", "out", "stayingTimeCensoringtype", "memo",
             "Enter_new", "Enter_cont")]
 ```
@@ -726,6 +724,8 @@ library(ctrest)
 
 # 1. 記録を読み込む（Excel で保存した日本語の CSV は fileEncoding = "CP932"）
 stay_records <- read.csv("my_stay_records.csv")
+#    DateTime がファイル名にしかない場合や、enter / out が動画開始からの
+#    秒数の場合は、ここで付録の方法で整える
 
 # 2. 変換する
 detection <- convert_stay(
@@ -767,10 +767,88 @@ CSV の 1 行目は見出しなので、CSV ファイルでは行番号 + 1 行�
 |---|---|
 | `Column(s) not found in 'data'` | 必須の列がない、または列名が違う。`col_station`、`col_species` などで列名を指定する |
 | `'data' must be a data frame` | ファイルのパスを渡している。先に `read.csv()` で読み込む |
-| `Could not determine the date-time` | `DateTime` が空で、`video_name` からも日時を読み取れない |
+| `'DateTime' is empty in row(s) ...` | `DateTime` が空欄の行がある。元の記録に日時を入れるか、[付録](#appendix)の `fill_datetime()` でファイル名から埋める |
+| `'DateTime' could not be read in row(s) ...` | `DateTime` の書式が読めない。`2024/06/01 23:59:50` の形にする |
 | ctrest で `Stay <= 0` の行が除かれる | `enter` と `out` が同じ秒。滞在時間 0 秒は解析に使えない |
 
 ## 1 本の動画に複数の種が映っているとき
 
 `convert_stay()` が種として使うのは `col_species` で指定した 1 列（既定は `species1`）です。
 1 行に 1 種・1 個体となるように記録してください。
+
+# 付録 {#appendix}
+
+自分のデータが、このチュートリアルで使った形（`DateTime` に撮影日時、`enter` / `out` に時計の時刻）に
+なっていない場合の整え方です。どちらも `convert_stay()` の前に使います。
+
+## 撮影日時がファイル名にしかない場合
+
+`convert_stay()` は撮影日時を `DateTime` 列からだけ読みます。`DateTime` が空欄の行があると、
+エラーで止まります。ファイル名が `<カメラ名>_yymmdd_HHMMSS_...` の形
+（例：`c15_240501_105240_05010001.MOV`）になっていれば、`fill_datetime()` で
+ファイル名から `DateTime` を埋められます。ファイル名の読み取りには
+`parse_video_datetime()` が使われます。
+
+```{r}
+parse_video_datetime("c15_240501_105240_05010001.MOV", tz = "Asia/Tokyo")
+```
+
+サンプルデータの `DateTime` をわざと空欄にして、ファイル名から埋め直してみます。
+
+```{r}
+no_datetime <- read.csv(path)
+no_datetime$DateTime <- NA
+filled <- fill_datetime(no_datetime)
+filled[, c("video_name", "DateTime")]
+```
+
+`fill_datetime()` は、埋めた結果を `DateTime` 列に文字列で書き込むだけなので、
+`convert_stay()` に渡す前に **正しく読み取れたかを目で確かめられます**。
+
+- すでに入っている `DateTime` は変更しません（`overwrite = TRUE` で上書き）。
+- 埋めた行数はメッセージで表示されます。
+- ファイル名から日時を読めなかった行は、行番号付きの警告で示されます。
+
+## 時刻を「動画開始からの秒数」で記録している場合
+
+動画を見ながら記録するときは、時計の時刻ではなく
+「動画が始まってから何秒後に入ったか・出たか」で記録することもあります。
+その場合は、`convert_stay()` の前に `transform_elapsed()` で時計の時刻に直します。
+`DateTime` が空欄の場合は、先に前の節の `fill_datetime()` で埋めておきます。
+
+- `enter` = 動画の記録日時 + `enter_elapsed`（入るまでの秒数）
+- `out` = 動画の記録日時 + `out_elapsed`（出るまでの秒数）
+
+このチュートリアルのデータのように、ファイル名の時刻が **動画の撮影が終わった時刻** の場合は、
+動画の長さを引いて開始時刻にそろえる必要があります。引数 `offset_videolength` で指定します。
+
+| `offset_videolength` | 動作 |
+|---|---|
+| `FALSE`（既定） | 何も引かない（記録日時が動画の開始時刻の場合） |
+| `TRUE` | `video_length` 列の秒数を引く（`NA` は 0 とみなす） |
+| 0 以上の数 | その秒数を全行から一律に引く（例：`20`） |
+
+```{r}
+elapsed <- data.frame(
+  deploymentID = "camA",
+  video_name = c("camA_240601_235950_06010001.MOV",
+                 "camA_240602_000015_06020002.MOV"),
+  DateTime = c("2024/06/01 23:59:50",   # 23:59:30〜23:59:50 の動画（終了時刻）
+               "2024/06/02 00:00:15"),  # 23:59:55〜0:00:15 の動画（終了時刻）
+  species1 = "deer",
+  enter_elapsed = c(5, 0),      # 動画開始から 5 秒後に入った / 最初からいた
+  out_elapsed = c(20, 12),      # 最後までいた / 12 秒後に出た
+  video_length = 20,
+  stayingTimeCensoringtype = c("right", "left"),
+  Enter_cont = c(FALSE, TRUE)
+)
+elapsed <- transform_elapsed(elapsed, offset_videolength = TRUE, tz = "Asia/Tokyo")
+elapsed[, c("video_name", "enter_elapsed", "out_elapsed", "enter", "out")]
+convert_stay(elapsed, tz = "Asia/Tokyo")
+```
+
+1 本目の動画は 23:59:30 に始まるので、5 秒後の 23:59:35 に入り、
+2 本目の動画（23:59:55 開始）の 12 秒後、0:00:07 に出ています。滞在時間は 32 秒です。
+
+経過秒数が負のとき、`out_elapsed` が `enter_elapsed` より小さいとき、
+動画の長さを引く設定で経過秒数が動画の長さを超えるときは、警告が出ます。

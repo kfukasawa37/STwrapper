@@ -25,7 +25,8 @@ convert_stay(
 \item{col_datetime}{Column with the recording date-time of each video
 (\verb{yyyy/mm/dd HH:MM:SS}). Default \code{"DateTime"}.}
 
-\item{col_file}{Column with the video file name. Default \code{"video_name"}.}
+\item{col_file}{Column with the video file name, used to tell videos apart
+when present. Default \code{"video_name"}.}
 
 \item{term}{Value for the \code{Term} column: either a single value used for
 all rows or the name of a column in \code{data}. Default \code{NA}.}
@@ -46,13 +47,13 @@ Converts a per-video staying time table (one row per animal and video, with
 }
 \details{
 Required columns are \code{enter}, \code{out}, \code{stayingTimeCensoringtype},
-\code{Enter_cont}, the station and species columns, and at least one of the
-date-time column (\code{DateTime}) and the file name column (\code{video_name}).
-Other columns such as \code{Enter_new}, \code{sp_ID}, \code{note} and \code{memo} are used when
-present, and any further columns are ignored. When the date-time column is
-missing or empty, the date-time is read from the file name (see
-\code{\link[=parse_video_datetime]{parse_video_datetime()}}). When the file name column is missing, videos are
-identified by their date-time.
+\code{Enter_cont}, the station and species columns, and the recording date-time
+(\code{DateTime}), which must be filled on every row. Use \code{\link[=fill_datetime]{fill_datetime()}}
+beforehand to fill empty date-times from the file names. Other columns such
+as \code{video_name}, \code{Enter_new}, \code{sp_ID}, \code{note} and \code{memo} are used when
+present, and any further columns are ignored. Videos are identified by the
+file name when the file name column is present, and by their date-time
+otherwise.
 
 A staying event that spans several videos is recorded as several rows in
 the input: the first row has \code{Enter_new = TRUE} and each row in a following

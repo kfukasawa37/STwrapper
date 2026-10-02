@@ -26,6 +26,31 @@ detection <- convert_stay(stay, term = "term1")
 write.csv(detection, "detection_data.csv", row.names = FALSE)
 ```
 
+### Filling the recording date-time from file names
+
+`convert_stay()` and `transform_elapsed()` take the recording date-time only
+from the `DateTime` column. If it is empty, fill it beforehand with
+`fill_datetime()`, which reads `<camera>_yymmdd_HHMMSS_...` file names and
+writes the result to `DateTime` as text, so it can be checked before the
+conversion.
+
+### Times recorded as elapsed seconds within each video
+
+If `enter` / `out` were recorded as seconds from the start of each video,
+`transform_elapsed()` turns them into clock times before `convert_stay()`:
+`enter` = recording date-time + `enter_elapsed`, `out` = recording date-time +
+`out_elapsed`. When the recording date-time is the end of the video (as in
+file names written when recording stops), subtract the video length with
+`offset_videolength`: `FALSE` (default) subtracts nothing, `TRUE` subtracts the
+`video_length` column (`NA` counts as 0), and a number subtracts that many
+seconds from every row.
+
+```r
+stay <- read.csv("records_with_elapsed_times.csv")
+stay <- transform_elapsed(stay, offset_videolength = TRUE, tz = "Asia/Tokyo")
+detection <- convert_stay(stay, term = "term1", tz = "Asia/Tokyo")
+```
+
 ## Simulated data and a full REST workflow
 
 `simulate_stay_data()` simulates animals entering the focal areas of camera
@@ -72,14 +97,13 @@ Required columns:
 | `enter`, `out` | Clock times (`H:MM:SS`) when the animal entered and left the focal area |
 | `stayingTimeCensoringtype` | `complete`, `left`, `right` or `both` |
 | `Enter_cont` | `TRUE` when the animal continues staying from the previous video |
-| `DateTime` and/or `video_name` | At least one of them (see below) |
+| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS` (change with `col_datetime`), filled on every row; see `fill_datetime()` |
 
 Optional columns:
 
 | Column | Content |
 |---|---|
-| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS` (change with `col_datetime`). If missing or empty, it is read from `video_name`. |
-| `video_name` | File name `<camera>_yymmdd_HHMMSS_....MOV` (change with `col_file`). If missing, videos are identified by `DateTime`. |
+| `video_name` | File name (change with `col_file`), used to tell videos apart. If missing, videos are identified by `DateTime`. |
 | `Enter_new` | `TRUE` on the first row of a staying event (not needed for the conversion) |
 | `sp_ID` | Individual number within the video, used to pick the right event when several are continued |
 | `note`, `memo` | `noentry` for a detection without entry into the focal area |

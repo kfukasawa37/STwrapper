@@ -2,12 +2,6 @@ example_data <- function() {
   read.csv(system.file("extdata", "example_stay.csv", package = "STwrapper"))
 }
 
-test_that("parse_video_datetime reads yymmdd_HHMMSS from file names", {
-  x <- parse_video_datetime(c("c15_240501_105240_05010001.MOV", "bad.MOV"))
-  expect_equal(format(x[1], "%Y/%m/%d %H:%M:%S"), "2024/05/01 10:52:40")
-  expect_true(is.na(x[2]))
-})
-
 test_that("output has the ctrest detection_data columns and types", {
   res <- convert_stay(example_data())
   expect_named(res, c("Station", "DateTime", "Term", "Species", "y", "Stay", "Cens"))
@@ -76,7 +70,7 @@ test_that("a file path is rejected", {
 
 test_that("only the minimal columns are needed", {
   d <- example_data()
-  minimal <- d[, c("deploymentID", "video_name", "species1", "enter", "out",
+  minimal <- d[, c("deploymentID", "DateTime", "species1", "enter", "out",
                    "stayingTimeCensoringtype", "Enter_cont")]
   res <- convert_stay(minimal)
   deer <- res[res$Species == "deer", ]
@@ -90,18 +84,25 @@ test_that("extra columns are ignored", {
   expect_equal(convert_stay(d), convert_stay(example_data()))
 })
 
-test_that("video_name is not needed when DateTime is given", {
+test_that("video_name is not needed", {
   d <- example_data()
-  d$DateTime <- format(parse_video_datetime(d$video_name), "%Y/%m/%d %H:%M:%S")
   d$video_name <- NULL
   expect_equal(convert_stay(d), convert_stay(example_data()))
 })
 
-test_that("DateTime or video_name is required", {
+test_that("DateTime is required and must be filled", {
   d <- example_data()
-  d$video_name <- NULL
   d$DateTime <- NULL
-  expect_error(convert_stay(d), "date-time column")
+  expect_error(convert_stay(d), "DateTime")
+
+  # convert_stay() does not read date-times from file names
+  d <- example_data()
+  d$DateTime[3] <- NA
+  expect_error(convert_stay(d), "empty in row[(]s[)] 3 .*fill_datetime")
+
+  d <- example_data()
+  d$DateTime[2] <- "June 1"
+  expect_error(convert_stay(d), "could not be read in row[(]s[)] 2 ")
 })
 
 test_that("missing required columns give an error", {
