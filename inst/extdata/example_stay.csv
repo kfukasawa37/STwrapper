@@ -1,4 +1,4 @@
-id,deploymentID,video_name,DateTime,species1,number1,note,sp_ID,enter,out,stayingTimeCensoringtype,memo,Enter_new,Enter_cont
+id,deploymentID,video_name,DateTime,species,number1,note,sp_ID,enter,out,stayingTimeCensoringType,memo,Enter_new,Enter_cont
 1,camA,camA_240601_120000_06010001.MOV,2024/06/01 12:00:00,hito,1,,,,,,,,
 2,camA,camA_240601_235950_06010002.MOV,2024/06/01 23:59:50,deer,1,,1,23:59:40,23:59:50,right,,TRUE,FALSE
 3,camA,camA_240602_000015_06020003.MOV,2024/06/02 00:00:15,deer,1,,1,23:59:55,0:00:15,both,,FALSE,TRUE

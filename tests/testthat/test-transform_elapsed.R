@@ -6,11 +6,11 @@ elapsed_data <- function() {
                    "camA_240602_000015_06020002.MOV",
                    "camA_240602_000040_06020003.MOV",
                    "camA_240602_120000_06020004.MOV"),
-    species1 = c("deer", "deer", "deer", "hito"),
+    species = c("deer", "deer", "deer", "hito"),
     enter_elapsed = c(0, 0, 0, NA),
     out_elapsed = c(20, 20, 10, NA),
     video_length = c(20, 20, 20, NA),
-    stayingTimeCensoringtype = c("right", "both", "left", NA),
+    stayingTimeCensoringType = c("right", "both", "left", NA),
     Enter_cont = c(FALSE, TRUE, TRUE, NA)
   )
   suppressMessages(fill_datetime(d))
@@ -21,7 +21,7 @@ test_that("elapsed times are added to the recording date-time", {
   expect_equal(res$enter, c("23:59:50", "0:00:15", "0:00:40", NA))
   expect_equal(res$out, c("0:00:10", "0:00:35", "0:00:50", NA))
   # other columns are kept
-  expect_equal(res$species1, elapsed_data()$species1)
+  expect_equal(res$species, elapsed_data()$species)
 })
 
 test_that("offset_videolength = TRUE subtracts the video length column", {

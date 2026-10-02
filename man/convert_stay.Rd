@@ -7,9 +7,15 @@
 convert_stay(
   data,
   col_station = "deploymentID",
-  col_species = "species1",
+  col_species = "species",
   col_datetime = "DateTime",
   col_file = "video_name",
+  col_enter = "enter",
+  col_out = "out",
+  col_cens = "stayingTimeCensoringType",
+  col_enter_new = "Enter_new",
+  col_enter_cont = "Enter_cont",
+  col_sp_id = "sp_ID",
   term = NA,
   tz = "UTC"
 )
@@ -18,15 +24,30 @@ convert_stay(
 \item{data}{A data frame in the staying time input format, as read by
 \code{\link[utils:read.table]{utils::read.csv()}}.}
 
-\item{col_station}{Column used as \code{Station}. Default \code{"deploymentID"}.}
+\item{col_station}{Column with the camera station, used as \code{Station}.
+Default \code{"deploymentID"}.}
 
-\item{col_species}{Column used as \code{Species}. Default \code{"species1"}.}
+\item{col_species}{Column with the species, used as \code{Species}. Default
+\code{"species"}.}
 
 \item{col_datetime}{Column with the recording date-time of each video
 (\verb{yyyy/mm/dd HH:MM:SS}). Default \code{"DateTime"}.}
 
 \item{col_file}{Column with the video file name, used to tell videos apart
 when present. Default \code{"video_name"}.}
+
+\item{col_enter, col_out}{Columns with the clock times of entering and
+leaving the focal area. Defaults \code{"enter"} and \code{"out"}.}
+
+\item{col_cens}{Column with the censoring type. Default
+\code{"stayingTimeCensoringType"}.}
+
+\item{col_enter_new, col_enter_cont}{Columns flagging a new staying event and
+a continuation from the previous video. Defaults \code{"Enter_new"} and
+\code{"Enter_cont"}.}
+
+\item{col_sp_id}{Column with the number of the animal within the video.
+Default \code{"sp_ID"}.}
 
 \item{term}{Value for the \code{Term} column: either a single value used for
 all rows or the name of a column in \code{data}. Default \code{NA}.}
@@ -46,9 +67,12 @@ Converts a per-video staying time table (one row per animal and video, with
 \code{Cens}), as in \code{ctrest::detection_data}.
 }
 \details{
-Required columns are \code{enter}, \code{out}, \code{stayingTimeCensoringtype},
-\code{Enter_cont}, the station and species columns, and the recording date-time
-(\code{DateTime}), which must be filled on every row. Use \code{\link[=fill_datetime]{fill_datetime()}}
+Required columns are \code{deploymentID}, \code{species}, \code{DateTime}, \code{enter}, \code{out},
+\code{stayingTimeCensoringType} and \code{Enter_cont}; the recording date-time
+(\code{DateTime}) must be filled on every row. When a column has another name in
+\code{data}, give that name with the matching \verb{col_*} argument (for example
+\code{col_species = "species1"}). A column cannot be given for two items, nor
+be the standard column of another item (for example \code{col_species = "enter"}); both stop with an error. Use \code{\link[=fill_datetime]{fill_datetime()}}
 beforehand to fill empty date-times from the file names. Other columns such
 as \code{video_name}, \code{Enter_new}, \code{sp_ID}, \code{note} and \code{memo} are used when
 present, and any further columns are ignored. Videos are identified by the
@@ -59,7 +83,7 @@ A staying event that spans several videos is recorded as several rows in
 the input: the first row has \code{Enter_new = TRUE} and each row in a following
 video has \code{Enter_cont = TRUE}. For each station and species, a row with
 \code{Enter_cont = TRUE} is merged into an event that was still in view
-(\code{stayingTimeCensoringtype} of \code{"right"} or \code{"both"}) at the end of the
+(\code{stayingTimeCensoringType} of \code{"right"} or \code{"both"}) at the end of the
 previous video in which the same species appeared. When several such events
 are open, the one with the same \code{sp_ID} is preferred, then the earliest.
 
@@ -71,14 +95,14 @@ started.
 \item \code{Stay} is the staying time in seconds, from \code{enter} of the first row of
 the event to \code{out} of its last row, which may be in a later video.
 \item \code{Cens} is 1 when the last row of the event has
-\code{stayingTimeCensoringtype} \code{"right"} or \code{"both"}, and 0 otherwise.
+\code{stayingTimeCensoringType} \code{"right"} or \code{"both"}, and 0 otherwise.
 }
 
 When several animals enter in the same video, each gets its own row with
 \code{y = 1}. In addition, a video in which the species was detected but no
 event started gives one row with \code{Stay} and \code{Cens} set to \code{NA}: \code{y} is 0
 when there was no new entry (\code{"noentry"} in \code{note}, \code{memo} or
-\code{stayingTimeCensoringtype}, or only continuations of earlier events), and
+\code{stayingTimeCensoringType}, or only continuations of earlier events), and
 \code{NA} when there is no entry information at all (no \code{enter}/\code{out} and no
 \code{"noentry"}).
 
@@ -89,13 +113,13 @@ suited to the RAD-REST model, which needs the number of entries per video.
 The input is checked for inconsistent records, and a warning lists the rows
 of \code{data} concerned:
 \itemize{
-\item \code{stayingTimeCensoringtype} other than \code{"complete"}, \code{"left"}, \code{"right"}
+\item \code{stayingTimeCensoringType} other than \code{"complete"}, \code{"left"}, \code{"right"}
 or \code{"both"} on a row with \code{enter} and \code{out} (the row is treated as not
 right-censored);
 \item only one of \code{enter} and \code{out} filled (the row is not used as a stay);
 \item \code{out} earlier than \code{enter};
 \item \code{Enter_cont = TRUE} without \code{enter} / \code{out};
-\item \code{Enter_cont = TRUE} but \code{stayingTimeCensoringtype} not \code{"left"} or
+\item \code{Enter_cont = TRUE} but \code{stayingTimeCensoringType} not \code{"left"} or
 \code{"both"} (an animal continuing from the previous video is already in view
 when the video starts);
 \item \code{Enter_new} and \code{Enter_cont} both \code{TRUE}, or both \code{FALSE} on a row with

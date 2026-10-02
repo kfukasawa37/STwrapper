@@ -37,6 +37,10 @@
 #' smaller than `enter_elapsed`, or, when an offset is subtracted, with an
 #' elapsed time longer than the offset (the video length).
 #'
+#' Columns given with the `col_*` arguments are returned under the standard
+#' names `enter_elapsed`, `out_elapsed`, `video_length` and `DateTime`, so the
+#' following functions need no column arguments for them.
+#'
 #' @return `data` with the columns `enter` and `out` set to clock times
 #'   (`"H:MM:SS"`, with decimals when the elapsed times have them). Rows whose
 #'   elapsed time is `NA` keep the value already in `enter` / `out`, or `NA`
@@ -63,20 +67,20 @@ transform_elapsed <- function(data,
   if (!is.data.frame(data)) {
     stop("'data' must be a data frame.", call. = FALSE)
   }
-  missing <- setdiff(c(col_enter_elapsed, col_out_elapsed, col_datetime), names(data))
-  if (length(missing) > 0) {
-    stop("Column(s) not found in 'data': ", paste(missing, collapse = ", "),
-         call. = FALSE)
-  }
+  data <- standardize_columns(data, c(
+    enter_elapsed = col_enter_elapsed, out_elapsed = col_out_elapsed,
+    video_length = col_video_length, DateTime = col_datetime
+  ), required = c("enter_elapsed", "out_elapsed", "DateTime"),
+  reserved = c("enter", "out"))
 
   # Seconds to subtract from the recording date-time
   if (isTRUE(offset_videolength)) {
-    if (!col_video_length %in% names(data)) {
+    if (!"video_length" %in% names(data)) {
       stop(sprintf("Column '%s' not found in 'data' (needed for offset_videolength = TRUE).",
                    col_video_length), call. = FALSE)
     }
-    offset <- elapsed_seconds(data[[col_video_length]])
-    if (any(!is.na(as_chr(data[[col_video_length]])) & is.na(offset))) {
+    offset <- elapsed_seconds(data$video_length)
+    if (any(!is.na(as_chr(data$video_length)) & is.na(offset))) {
       stop(sprintf("Column '%s' must contain seconds.", col_video_length), call. = FALSE)
     }
     offset[is.na(offset)] <- 0
@@ -90,10 +94,10 @@ transform_elapsed <- function(data,
          call. = FALSE)
   }
 
-  enter_sec <- elapsed_seconds(data[[col_enter_elapsed]])
-  out_sec <- elapsed_seconds(data[[col_out_elapsed]])
-  bad <- (!is.na(as_chr(data[[col_enter_elapsed]])) & is.na(enter_sec)) |
-    (!is.na(as_chr(data[[col_out_elapsed]])) & is.na(out_sec))
+  enter_sec <- elapsed_seconds(data$enter_elapsed)
+  out_sec <- elapsed_seconds(data$out_elapsed)
+  bad <- (!is.na(as_chr(data$enter_elapsed)) & is.na(enter_sec)) |
+    (!is.na(as_chr(data$out_elapsed)) & is.na(out_sec))
   if (any(bad)) {
     stop("Elapsed times must be seconds or 'M:SS' / 'H:MM:SS': row(s) ",
          paste(utils::head(which(bad), 10), collapse = ", "), " of 'data'.",
@@ -101,8 +105,8 @@ transform_elapsed <- function(data,
   }
 
   has_time <- !is.na(enter_sec) | !is.na(out_sec)
-  video_dt <- video_datetime(data[[col_datetime]], tz)
-  check_datetime(video_dt, data[[col_datetime]], col_datetime,
+  video_dt <- video_datetime(data$DateTime, tz)
+  check_datetime(video_dt, data$DateTime, col_datetime,
                  rows = which(has_time & is.na(video_dt)))
   warn_rows(which(enter_sec < 0 | out_sec < 0), "Negative elapsed time")
   warn_rows(which(offset > 0 & (enter_sec > offset | out_sec > offset)),

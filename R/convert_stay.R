@@ -5,9 +5,13 @@
 #' 'ctrest' package (`Station`, `DateTime`, `Term`, `Species`, `y`, `Stay`,
 #' `Cens`), as in `ctrest::detection_data`.
 #'
-#' Required columns are `enter`, `out`, `stayingTimeCensoringtype`,
-#' `Enter_cont`, the station and species columns, and the recording date-time
-#' (`DateTime`), which must be filled on every row. Use [fill_datetime()]
+#' Required columns are `deploymentID`, `species`, `DateTime`, `enter`, `out`,
+#' `stayingTimeCensoringType` and `Enter_cont`; the recording date-time
+#' (`DateTime`) must be filled on every row. When a column has another name in
+#' `data`, give that name with the matching `col_*` argument (for example
+#' `col_species = "species1"`). A column cannot be given for two items, nor
+#' be the standard column of another item (for example `col_species =
+#' "enter"`); both stop with an error. Use [fill_datetime()]
 #' beforehand to fill empty date-times from the file names. Other columns such
 #' as `video_name`, `Enter_new`, `sp_ID`, `note` and `memo` are used when
 #' present, and any further columns are ignored. Videos are identified by the
@@ -18,7 +22,7 @@
 #' the input: the first row has `Enter_new = TRUE` and each row in a following
 #' video has `Enter_cont = TRUE`. For each station and species, a row with
 #' `Enter_cont = TRUE` is merged into an event that was still in view
-#' (`stayingTimeCensoringtype` of `"right"` or `"both"`) at the end of the
+#' (`stayingTimeCensoringType` of `"right"` or `"both"`) at the end of the
 #' previous video in which the same species appeared. When several such events
 #' are open, the one with the same `sp_ID` is preferred, then the earliest.
 #'
@@ -29,13 +33,13 @@
 #' * `Stay` is the staying time in seconds, from `enter` of the first row of
 #'   the event to `out` of its last row, which may be in a later video.
 #' * `Cens` is 1 when the last row of the event has
-#'   `stayingTimeCensoringtype` `"right"` or `"both"`, and 0 otherwise.
+#'   `stayingTimeCensoringType` `"right"` or `"both"`, and 0 otherwise.
 #'
 #' When several animals enter in the same video, each gets its own row with
 #' `y = 1`. In addition, a video in which the species was detected but no
 #' event started gives one row with `Stay` and `Cens` set to `NA`: `y` is 0
 #' when there was no new entry (`"noentry"` in `note`, `memo` or
-#' `stayingTimeCensoringtype`, or only continuations of earlier events), and
+#' `stayingTimeCensoringType`, or only continuations of earlier events), and
 #' `NA` when there is no entry information at all (no `enter`/`out` and no
 #' `"noentry"`).
 #'
@@ -45,13 +49,13 @@
 #'
 #' The input is checked for inconsistent records, and a warning lists the rows
 #' of `data` concerned:
-#' * `stayingTimeCensoringtype` other than `"complete"`, `"left"`, `"right"`
+#' * `stayingTimeCensoringType` other than `"complete"`, `"left"`, `"right"`
 #'   or `"both"` on a row with `enter` and `out` (the row is treated as not
 #'   right-censored);
 #' * only one of `enter` and `out` filled (the row is not used as a stay);
 #' * `out` earlier than `enter`;
 #' * `Enter_cont = TRUE` without `enter` / `out`;
-#' * `Enter_cont = TRUE` but `stayingTimeCensoringtype` not `"left"` or
+#' * `Enter_cont = TRUE` but `stayingTimeCensoringType` not `"left"` or
 #'   `"both"` (an animal continuing from the previous video is already in view
 #'   when the video starts);
 #' * `Enter_new` and `Enter_cont` both `TRUE`, or both `FALSE` on a row with
@@ -71,12 +75,23 @@
 #'
 #' @param data A data frame in the staying time input format, as read by
 #'   [utils::read.csv()].
-#' @param col_station Column used as `Station`. Default `"deploymentID"`.
-#' @param col_species Column used as `Species`. Default `"species1"`.
+#' @param col_station Column with the camera station, used as `Station`.
+#'   Default `"deploymentID"`.
+#' @param col_species Column with the species, used as `Species`. Default
+#'   `"species"`.
 #' @param col_datetime Column with the recording date-time of each video
 #'   (`yyyy/mm/dd HH:MM:SS`). Default `"DateTime"`.
 #' @param col_file Column with the video file name, used to tell videos apart
 #'   when present. Default `"video_name"`.
+#' @param col_enter,col_out Columns with the clock times of entering and
+#'   leaving the focal area. Defaults `"enter"` and `"out"`.
+#' @param col_cens Column with the censoring type. Default
+#'   `"stayingTimeCensoringType"`.
+#' @param col_enter_new,col_enter_cont Columns flagging a new staying event and
+#'   a continuation from the previous video. Defaults `"Enter_new"` and
+#'   `"Enter_cont"`.
+#' @param col_sp_id Column with the number of the animal within the video.
+#'   Default `"sp_ID"`.
 #' @param term Value for the `Term` column: either a single value used for
 #'   all rows or the name of a column in `data`. Default `NA`.
 #' @param tz Time zone used to interpret the date-times. Default `"UTC"`.
@@ -92,35 +107,43 @@
 #' @export
 convert_stay <- function(data,
                          col_station = "deploymentID",
-                         col_species = "species1",
+                         col_species = "species",
                          col_datetime = "DateTime",
                          col_file = "video_name",
+                         col_enter = "enter",
+                         col_out = "out",
+                         col_cens = "stayingTimeCensoringType",
+                         col_enter_new = "Enter_new",
+                         col_enter_cont = "Enter_cont",
+                         col_sp_id = "sp_ID",
                          term = NA,
                          tz = "UTC") {
   if (!is.data.frame(data)) {
     stop("'data' must be a data frame.", call. = FALSE)
   }
+  term_col <- length(term) == 1 && is.character(term) && term %in% names(data)
+  term_values <- if (term_col) as_chr(data[[term]]) else rep(term, length.out = nrow(data))
 
-  required <- c("enter", "out", "stayingTimeCensoringtype", "Enter_cont",
-                col_station, col_species, col_datetime)
-  missing <- setdiff(required, names(data))
-  if (length(missing) > 0) {
-    stop("Column(s) not found in 'data': ", paste(missing, collapse = ", "),
-         call. = FALSE)
-  }
-  has_file <- col_file %in% names(data)
+  data <- standardize_columns(data, c(
+    deploymentID = col_station, video_name = col_file, DateTime = col_datetime,
+    species = col_species, enter = col_enter, out = col_out,
+    stayingTimeCensoringType = col_cens, Enter_new = col_enter_new,
+    Enter_cont = col_enter_cont, sp_ID = col_sp_id
+  ), required = c("deploymentID", "species", "DateTime", "enter", "out",
+                  "stayingTimeCensoringType", "Enter_cont"))
+  has_file <- "video_name" %in% names(data)
   optional_col <- function(col) {
     if (col %in% names(data)) as_chr(data[[col]]) else rep(NA_character_, nrow(data))
   }
 
   d <- data.frame(
     row = seq_len(nrow(data)),
-    Station = as_chr(data[[col_station]]),
-    File = optional_col(col_file),
-    Species = as_chr(data[[col_species]]),
+    Station = as_chr(data$deploymentID),
+    File = optional_col("video_name"),
+    Species = as_chr(data$species),
     enter = as_chr(data$enter),
     out = as_chr(data$out),
-    cens = tolower(as_chr(data$stayingTimeCensoringtype)),
+    cens = tolower(as_chr(data$stayingTimeCensoringType)),
     enter_cont = as_lgl(data$Enter_cont),
     enter_new = if ("Enter_new" %in% names(data)) as_lgl(data$Enter_new) else NA,
     sp_ID = optional_col("sp_ID"),
@@ -128,18 +151,13 @@ convert_stay <- function(data,
   )
   # "noentry" marks a detection without entry into the focal area
   d$noentry <- Reduce(`|`, lapply(
-    intersect(c("note", "memo", "stayingTimeCensoringtype"), names(data)),
+    intersect(c("note", "memo", "stayingTimeCensoringType"), names(data)),
     function(col) tolower(as_chr(data[[col]])) %in% "noentry"
   ), rep(FALSE, nrow(d)))
-  d$Term <- if (length(term) == 1 && is.character(term) &&
-                term %in% names(data)) {
-    as_chr(data[[term]])
-  } else {
-    rep(term, length.out = nrow(d))
-  }
+  d$Term <- term_values
 
-  video_dt <- video_datetime(data[[col_datetime]], tz)
-  check_datetime(video_dt, data[[col_datetime]], col_datetime)
+  video_dt <- video_datetime(data$DateTime, tz)
+  check_datetime(video_dt, data$DateTime, col_datetime)
   d$video_dt <- video_dt
   # Key identifying a video: file name, or date-time when there is none
   d$video <- if (has_file) d$File else format(video_dt, "%Y-%m-%d %H:%M:%S", tz = tz)
@@ -152,14 +170,14 @@ convert_stay <- function(data,
 
   # Consistency checks on the input records
   warn_rows(d$row[d$is_stay & !d$cens %in% c("complete", "left", "right", "both")],
-            "Unknown stayingTimeCensoringtype (not complete/left/right/both)")
+            "Unknown stayingTimeCensoringType (not complete/left/right/both)")
   warn_rows(d$row[xor(is.na(d$enter), is.na(d$out))],
             "Only one of 'enter' and 'out' is given; the row is not used as a stay")
   warn_rows(d$row[d$is_stay & d$t_out < d$t_enter], "'out' is earlier than 'enter'")
   warn_rows(d$row[d$enter_cont %in% TRUE & !d$is_stay],
             "Enter_cont = TRUE without 'enter' and 'out'")
   warn_rows(d$row[d$is_stay & d$enter_cont %in% TRUE & !d$cens %in% c("left", "both")],
-            "Enter_cont = TRUE but stayingTimeCensoringtype is not left or both")
+            "Enter_cont = TRUE but stayingTimeCensoringType is not left or both")
   warn_rows(d$row[d$enter_new %in% TRUE & d$enter_cont %in% TRUE],
             "Enter_new and Enter_cont are both TRUE")
   warn_rows(d$row[d$is_stay & d$enter_new %in% FALSE & d$enter_cont %in% FALSE],
@@ -290,6 +308,47 @@ empty_output <- function(tz) {
              video_dt = as.POSIXct(character(0), tz = tz), Term = character(0),
              Species = character(0), y = integer(0), Stay = numeric(0),
              Cens = numeric(0), stringsAsFactors = FALSE)
+}
+
+# Rename the columns given by the user to the standard names.
+# `map` is a named vector: standard name = column name in `data`.
+# `reserved` are further standard names the function writes itself.
+standardize_columns <- function(data, map, required = character(0),
+                                reserved = character(0)) {
+  # The same column must not be used for two items
+  dup <- unique(map[duplicated(map)])
+  if (length(dup) > 0) {
+    items <- vapply(dup, function(col) paste(names(map)[map == col], collapse = ", "),
+                    character(1))
+    stop(paste(sprintf("Column '%s' is given for more than one item (%s).", dup, items),
+               collapse = "\n"), call. = FALSE)
+  }
+  # A column given for an item must not be the standard column of another item
+  for (std in names(map)) {
+    other <- setdiff(c(names(map), reserved), std)
+    if (map[[std]] %in% other) {
+      stop(sprintf("Column '%s' is given for '%s', but '%s' is the standard column for another item. Rename it in 'data' first.",
+                   map[[std]], std, map[[std]]), call. = FALSE)
+    }
+  }
+
+  given <- map[required]
+  missing <- given[!given %in% names(data)]
+  if (length(missing) > 0) {
+    stop("Column(s) not found in 'data': ", paste(missing, collapse = ", "),
+         call. = FALSE)
+  }
+  for (std in names(map)) {
+    col <- map[[std]]
+    if (col == std || !col %in% names(data)) next
+    if (std %in% names(data)) {
+      warning(sprintf("Column '%s' is replaced by column '%s'.", std, col),
+              call. = FALSE)
+      data[[std]] <- NULL
+    }
+    names(data)[names(data) == col] <- std
+  }
+  data
 }
 
 # Recording date-time of each video from the date-time column

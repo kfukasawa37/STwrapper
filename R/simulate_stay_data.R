@@ -36,7 +36,7 @@
 #'
 #' Each video is named `<station>_yymmdd_HHMMSS_<mmdd><nnnn>.MOV` with the
 #' date-time at which recording ended, and `enter` / `out` are clock times
-#' rounded to seconds. A video of people (`species1 = "hito"`) is added when
+#' rounded to seconds. A video of people (`species = "hito"`) is added when
 #' each camera is set up and retrieved, so that the survey period can be
 #' taken from the first and last videos.
 #'
@@ -64,8 +64,8 @@
 #'   activity pattern, file names and clock times follow this time zone.
 #'
 #' @return A data frame with columns `id`, `deploymentID`, `video_name`,
-#'   `DateTime` (`yyyy/mm/dd HH:MM:SS`), `species1`, `sp_ID`, `enter`, `out`,
-#'   `stayingTimeCensoringtype`, `memo`, `Enter_new` and `Enter_cont`, one
+#'   `DateTime` (`yyyy/mm/dd HH:MM:SS`), `species`, `sp_ID`, `enter`, `out`,
+#'   `stayingTimeCensoringType`, `memo`, `Enter_new` and `Enter_cont`, one
 #'   row per animal and video. The true parameter values are attached as the
 #'   attribute `"truth"`: a list with `density`, `focal_area`, `mean_stay`
 #'   (seconds), `activity_level`, `effort` (camera days) and `n_entry` (number
@@ -202,14 +202,14 @@ simulate_stay_data <- function(n_station = 30,
                         out = character(0), cens = character(0), memo = character(0),
                         Enter_new = logical(0), Enter_cont = logical(0))
     }
-    rec$species1 <- rep(species, nrow(rec))
+    rec$species <- rep(species, nrow(rec))
     rec$v_end <- v_end[rec$v]
 
     # People setting up and retrieving the camera
     people <- data.frame(
       v = NA_integer_, sp_ID = NA_integer_, enter = NA_character_,
       out = NA_character_, cens = NA_character_, memo = NA_character_,
-      Enter_new = NA, Enter_cont = NA, species1 = "hito",
+      Enter_new = NA, Enter_cont = NA, species = "hito",
       v_end = c(t0, t1), stringsAsFactors = FALSE
     )
     rec <- rbind(people[1, ], rec, people[2, ])
@@ -230,11 +230,11 @@ simulate_stay_data <- function(n_station = 30,
     deploymentID = res$deploymentID,
     video_name = res$video_name,
     DateTime = res$DateTime,
-    species1 = res$species1,
+    species = res$species,
     sp_ID = res$sp_ID,
     enter = res$enter,
     out = res$out,
-    stayingTimeCensoringtype = res$cens,
+    stayingTimeCensoringType = res$cens,
     memo = res$memo,
     Enter_new = res$Enter_new,
     Enter_cont = res$Enter_cont,

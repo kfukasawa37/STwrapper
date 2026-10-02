@@ -23,7 +23,8 @@ is created when missing. Default \code{"DateTime"}.}
 replaced with the date-time in the file name. Default \code{FALSE}.}
 }
 \value{
-\code{data} with the date-time column filled. All other columns are
+\code{data} with the date-time column filled, and the date-time and
+file name columns named \code{DateTime} and \code{video_name}. All other columns are
 returned unchanged.
 }
 \description{
@@ -37,6 +38,10 @@ The filled values are written to the date-time column as text
 (\verb{yyyy/mm/dd HH:MM:SS}), so they can be checked before the conversion. A
 message reports how many rows were filled, and a warning lists the rows
 whose file name has no date-time.
+
+Columns given with \code{col_datetime} and \code{col_file} are returned under the
+standard names \code{DateTime} and \code{video_name}, so the following functions need
+no column arguments for them.
 }
 \examples{
 d <- data.frame(

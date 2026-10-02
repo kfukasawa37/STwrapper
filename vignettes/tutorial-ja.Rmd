@@ -208,20 +208,27 @@ library(STwrapper)
 STwrapper に渡すのは、**動物 1 個体 × 動画 1 本を 1 行** とした表です。
 次の列が必要です。これ以外の列が含まれていても問題ありません（無視されます）。
 
-| 列名 | 内容 | 例 |
-|---|---|---|
-| `deploymentID` | カメラ地点（`col_station` で変更可） | `camA` |
-| `species1` | 種名（`col_species` で変更可） | `deer` |
-| `enter` | フォーカスエリアに入った時刻 | `23:59:40` |
-| `out` | フォーカスエリアから出た時刻 | `23:59:50` |
-| `stayingTimeCensoringtype` | 打ち切りの種類（下表） | `right` |
-| `Enter_cont` | 前の動画から続いている滞在なら `TRUE` | `FALSE` |
-| `DateTime` | 動画の撮影日時（すべての行に入っていること） | `2024/06/01 23:59:50` |
+| 標準の列名 | 内容 | 例 | 列名を指定する引数 |
+|---|---|---|---|
+| `deploymentID` | カメラ地点 | `camA` | `col_station` |
+| `species` | 種名 | `deer` | `col_species` |
+| `enter` | フォーカスエリアに入った時刻 | `23:59:40` | `col_enter` |
+| `out` | フォーカスエリアから出た時刻 | `23:59:50` | `col_out` |
+| `stayingTimeCensoringType` | 打ち切りの種類（下表） | `right` | `col_cens` |
+| `Enter_cont` | 前の動画から続いている滞在なら `TRUE` | `FALSE` | `col_enter_cont` |
+| `DateTime` | 動画の撮影日時（すべての行に入っていること） | `2024/06/01 23:59:50` | `col_datetime` |
 
-あると使われる列：`video_name`（ファイル名。動画の区別に使う）、`Enter_new`（新しい滞在の始まり）、
-`sp_ID`（動画内の個体番号）、`note` / `memo`（フォーカスエリアに入らなかったときは `noentry`）。
+あると使われる列：`video_name`（ファイル名。動画の区別に使う。`col_file`）、
+`Enter_new`（新しい滞在の始まり。`col_enter_new`）、`sp_ID`（動画内の個体番号。`col_sp_id`）、
+`note` / `memo`（フォーカスエリアに入らなかったときは `noentry`）。
 
-`stayingTimeCensoringtype` は、滞在の始まりと終わりが動画に映っているかを表します。
+自分のデータの列名がこれと違う場合は、右端の引数でデータ側の列名を指定すれば、
+関数の中で標準の列名に読み替えられます。たとえば種名の列が `species1` なら
+`col_species = "species1"` とします。[付録](#appendix)の前処理関数
+（`fill_datetime()`、`transform_elapsed()`）は、指定した列を **標準の列名に変えて返す** ので、
+その後の関数では列名を指定し直す必要はありません。
+
+`stayingTimeCensoringType` は、滞在の始まりと終わりが動画に映っているかを表します。
 
 | 値 | 意味 |
 |---|---|
@@ -249,8 +256,8 @@ STwrapper に渡すのは、**動物 1 個体 × 動画 1 本を 1 行** とし�
 ```{r}
 path <- system.file("extdata", "example_stay.csv", package = "STwrapper")
 example <- read.csv(path)
-example[, c("deploymentID", "video_name", "DateTime", "species1", "sp_ID",
-            "enter", "out", "stayingTimeCensoringtype", "memo",
+example[, c("deploymentID", "video_name", "DateTime", "species", "sp_ID",
+            "enter", "out", "stayingTimeCensoringType", "memo",
             "Enter_new", "Enter_cont")]
 ```
 
@@ -366,8 +373,8 @@ write.csv(sim, csv_path, row.names = FALSE)
 stay_records <- read.csv(csv_path)
 
 nrow(stay_records)
-head(stay_records[, c("deploymentID", "video_name", "species1", "sp_ID",
-                      "enter", "out", "stayingTimeCensoringtype",
+head(stay_records[, c("deploymentID", "video_name", "species", "sp_ID",
+                      "enter", "out", "stayingTimeCensoringType",
                       "Enter_new", "Enter_cont")], 8)
 ```
 
@@ -375,7 +382,7 @@ head(stay_records[, c("deploymentID", "video_name", "species1", "sp_ID",
 前の動画から続く記録（`Enter_cont = TRUE`）が一定数あることがわかります。
 
 ```{r}
-table(censoring = stay_records$stayingTimeCensoringtype,
+table(censoring = stay_records$stayingTimeCensoringType,
       Enter_cont = stay_records$Enter_cont, useNA = "ifany")
 ```
 
@@ -439,7 +446,7 @@ legend("bottomright", legend = c("新しく入った", "前の動画から継続
        col = c("#4C78A8", "#F58518"), lwd = 6, bty = "n", cex = 0.8)
 par(op)
 seg[, c("video_name", "sp_ID", "enter", "out",
-        "stayingTimeCensoringtype", "Enter_new", "Enter_cont")]
+        "stayingTimeCensoringType", "Enter_new", "Enter_cont")]
 ```
 
 動画 1 で最後まで映っていた個体（`right`）が、動画 2 に `Enter_cont = TRUE`（`left`）で
@@ -728,12 +735,13 @@ stay_records <- read.csv("my_stay_records.csv")
 #    秒数の場合は、ここで付録の方法で整える
 
 # 2. 変換する
+#    列名が標準と違う場合は col_* 引数で指定する（例：種名の列が species1）
 detection <- convert_stay(
   stay_records,
-  col_station = "deploymentID",   # 地点の列名
-  col_species = "species1",       # 種名の列名
-  term = "2024spring",            # 調査期間（列名を指定してもよい）
-  tz = "Asia/Tokyo"               # カメラの時計のタイムゾーン
+  col_species = "species1",                     # 種名の列名
+  col_cens = "stayingTimeCensoringtype",        # 打ち切りの種類の列名
+  term = "2024spring",                          # 調査期間（列名を指定してもよい）
+  tz = "Asia/Tokyo"                             # カメラの時計のタイムゾーン
 )
 
 # 3. 以降はこのチュートリアルの ctrest の手順と同じ
@@ -749,11 +757,11 @@ CSV の 1 行目は見出しなので、CSV ファイルでは行番号 + 1 行�
 
 | 警告の始まり | 意味と対処 |
 |---|---|
-| `Unknown stayingTimeCensoringtype` | 打ち切りの種類が `complete` / `left` / `right` / `both` 以外（つづりの誤りなど） |
+| `Unknown stayingTimeCensoringType` | 打ち切りの種類が `complete` / `left` / `right` / `both` 以外（つづりの誤りなど） |
 | `Only one of 'enter' and 'out' is given` | `enter` と `out` の片方だけが入力されている。この行は滞在として使われない |
 | `'out' is earlier than 'enter'` | `out` が `enter` より早い。時刻の入力ミスを確認する |
 | `Enter_cont = TRUE without 'enter' and 'out'` | 続きの記録なのに時刻が入っていない |
-| `Enter_cont = TRUE but stayingTimeCensoringtype is not left or both` | 前の動画から続いている個体は動画の開始時点ですでにいるので、打ち切りは `left` か `both` のはず |
+| `Enter_cont = TRUE but stayingTimeCensoringType is not left or both` | 前の動画から続いている個体は動画の開始時点ですでにいるので、打ち切りは `left` か `both` のはず |
 | `Enter_new and Enter_cont are both TRUE` / `both FALSE` | 新しい滞在か続きの滞在か、どちらか一方だけを `TRUE` にする |
 | `Enter_cont = TRUE but no open event` | 続きの記録なのに、前の動画に同じ種の `right` / `both` の記録がない。前の動画の打ち切りの記入を確認する（この行は新しい滞在として扱われる） |
 
@@ -765,7 +773,10 @@ CSV の 1 行目は見出しなので、CSV ファイルでは行番号 + 1 行�
 
 | 症状 | 原因と対処 |
 |---|---|
-| `Column(s) not found in 'data'` | 必須の列がない、または列名が違う。`col_station`、`col_species` などで列名を指定する |
+| `Column(s) not found in 'data'` | 必須の列がない、または列名が違う。`col_species`、`col_cens` などでデータ側の列名を指定する |
+| `Column '...' is given for more than one item` | 同じ列を 2 つ以上の項目に指定している（例：`col_enter` と `col_out` に同じ列）。それぞれ別の列を指定する |
+| `... is the standard column for another item` | 別の項目の標準の列名を指定している（例：`col_species = "enter"`）。データの列名を先に変えてから指定する |
+| `Column '...' is replaced by column '...'` | 引数で指定した列と同じ名前の標準の列もデータにあった。標準の列は捨てられ、指定した列が使われる |
 | `'data' must be a data frame` | ファイルのパスを渡している。先に `read.csv()` で読み込む |
 | `'DateTime' is empty in row(s) ...` | `DateTime` が空欄の行がある。元の記録に日時を入れるか、[付録](#appendix)の `fill_datetime()` でファイル名から埋める |
 | `'DateTime' could not be read in row(s) ...` | `DateTime` の書式が読めない。`2024/06/01 23:59:50` の形にする |
@@ -773,7 +784,7 @@ CSV の 1 行目は見出しなので、CSV ファイルでは行番号 + 1 行�
 
 ## 1 本の動画に複数の種が映っているとき
 
-`convert_stay()` が種として使うのは `col_species` で指定した 1 列（既定は `species1`）です。
+`convert_stay()` が種として使うのは `col_species` で指定した 1 列（既定は `species`）です。
 1 行に 1 種・1 個体となるように記録してください。
 
 # 付録 {#appendix}
@@ -835,11 +846,11 @@ elapsed <- data.frame(
                  "camA_240602_000015_06020002.MOV"),
   DateTime = c("2024/06/01 23:59:50",   # 23:59:30〜23:59:50 の動画（終了時刻）
                "2024/06/02 00:00:15"),  # 23:59:55〜0:00:15 の動画（終了時刻）
-  species1 = "deer",
+  species = "deer",
   enter_elapsed = c(5, 0),      # 動画開始から 5 秒後に入った / 最初からいた
   out_elapsed = c(20, 12),      # 最後までいた / 12 秒後に出た
   video_length = 20,
-  stayingTimeCensoringtype = c("right", "left"),
+  stayingTimeCensoringType = c("right", "left"),
   Enter_cont = c(FALSE, TRUE)
 )
 elapsed <- transform_elapsed(elapsed, offset_videolength = TRUE, tz = "Asia/Tokyo")

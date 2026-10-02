@@ -60,8 +60,8 @@ stay_records <- read.csv(path)
 
 head(stay_records[stay_records$Enter_cont %in% TRUE |
                     c(stay_records$Enter_cont[-1] %in% TRUE, FALSE),
-                  c("video_name", "species1", "enter", "out",
-                    "stayingTimeCensoringtype", "Enter_new", "Enter_cont")])
+                  c("video_name", "species", "enter", "out",
+                    "stayingTimeCensoringType", "Enter_new", "Enter_cont")])
 ```
 
 ## Merge staying events with STwrapper

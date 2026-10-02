@@ -88,25 +88,34 @@ estimation with ctrest, is available as `vignette("tutorial-ja", package = "STwr
 A data frame (for example from `read.csv()`) with one row per animal (or
 species) and video. Other columns may be present and are ignored.
 
+The tables give the standard column names. When a column has another name in
+your data, give that name with the matching argument (for example
+`col_species = "species1"`) and it is read as the standard column. The
+preprocessing functions `fill_datetime()` and `transform_elapsed()` return the
+columns they were given under the standard names, so later steps need no
+column arguments. Giving the same column for two items, or the standard
+column of another item (for example `col_species = "enter"`), stops with an
+error.
+
 Required columns:
 
-| Column | Content |
-|---|---|
-| `deploymentID` | Station (change with `col_station`) |
-| `species1` | Species (change with `col_species`) |
-| `enter`, `out` | Clock times (`H:MM:SS`) when the animal entered and left the focal area |
-| `stayingTimeCensoringtype` | `complete`, `left`, `right` or `both` |
-| `Enter_cont` | `TRUE` when the animal continues staying from the previous video |
-| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS` (change with `col_datetime`), filled on every row; see `fill_datetime()` |
+| Column | Content | Argument |
+|---|---|---|
+| `deploymentID` | Station | `col_station` |
+| `species` | Species | `col_species` |
+| `enter`, `out` | Clock times (`H:MM:SS`) when the animal entered and left the focal area | `col_enter`, `col_out` |
+| `stayingTimeCensoringType` | `complete`, `left`, `right` or `both` | `col_cens` |
+| `Enter_cont` | `TRUE` when the animal continues staying from the previous video | `col_enter_cont` |
+| `DateTime` | Recording date-time `yyyy/mm/dd HH:MM:SS`, filled on every row; see `fill_datetime()` | `col_datetime` |
 
 Optional columns:
 
-| Column | Content |
-|---|---|
-| `video_name` | File name (change with `col_file`), used to tell videos apart. If missing, videos are identified by `DateTime`. |
-| `Enter_new` | `TRUE` on the first row of a staying event (not needed for the conversion) |
-| `sp_ID` | Individual number within the video, used to pick the right event when several are continued |
-| `note`, `memo` | `noentry` for a detection without entry into the focal area |
+| Column | Content | Argument |
+|---|---|---|
+| `video_name` | File name, used to tell videos apart. If missing, videos are identified by `DateTime`. | `col_file` |
+| `Enter_new` | `TRUE` on the first row of a staying event (not needed for the conversion) | `col_enter_new` |
+| `sp_ID` | Individual number within the video, used to pick the right event when several are continued | `col_sp_id` |
+| `note`, `memo` | `noentry` for a detection without entry into the focal area | |
 
 ## Output format
 

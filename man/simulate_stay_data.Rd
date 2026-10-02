@@ -63,8 +63,8 @@ activity pattern, file names and clock times follow this time zone.}
 }
 \value{
 A data frame with columns \code{id}, \code{deploymentID}, \code{video_name},
-\code{DateTime} (\verb{yyyy/mm/dd HH:MM:SS}), \code{species1}, \code{sp_ID}, \code{enter}, \code{out},
-\code{stayingTimeCensoringtype}, \code{memo}, \code{Enter_new} and \code{Enter_cont}, one
+\code{DateTime} (\verb{yyyy/mm/dd HH:MM:SS}), \code{species}, \code{sp_ID}, \code{enter}, \code{out},
+\code{stayingTimeCensoringType}, \code{memo}, \code{Enter_new} and \code{Enter_cont}, one
 row per animal and video. The true parameter values are attached as the
 attribute \code{"truth"}: a list with \code{density}, \code{focal_area}, \code{mean_stay}
 (seconds), \code{activity_level}, \code{effort} (camera days) and \code{n_entry} (number
@@ -110,7 +110,7 @@ numbers.
 
 Each video is named \verb{<station>_yymmdd_HHMMSS_<mmdd><nnnn>.MOV} with the
 date-time at which recording ended, and \code{enter} / \code{out} are clock times
-rounded to seconds. A video of people (\code{species1 = "hito"}) is added when
+rounded to seconds. A video of people (\code{species = "hito"}) is added when
 each camera is set up and retrieved, so that the survey period can be
 taken from the first and last videos.
 }

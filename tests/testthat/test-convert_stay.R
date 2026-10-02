@@ -70,8 +70,8 @@ test_that("a file path is rejected", {
 
 test_that("only the minimal columns are needed", {
   d <- example_data()
-  minimal <- d[, c("deploymentID", "DateTime", "species1", "enter", "out",
-                   "stayingTimeCensoringtype", "Enter_cont")]
+  minimal <- d[, c("deploymentID", "DateTime", "species", "enter", "out",
+                   "stayingTimeCensoringType", "Enter_cont")]
   res <- convert_stay(minimal)
   deer <- res[res$Species == "deer", ]
   expect_equal(deer$Stay, c(50, NA, NA))
@@ -128,14 +128,14 @@ test_that("consistent data give no warnings", {
 
 test_that("Enter_cont rows that are not left or both censored are reported", {
   d <- example_data()
-  d$stayingTimeCensoringtype[d$id == 6] <- "right"
+  d$stayingTimeCensoringType[d$id == 6] <- "right"
   expect_match(capture_warnings(convert_stay(d)), "not left or both: row[(]s[)] 7 of 'data'", all = FALSE)
 })
 
 test_that("inconsistent records are reported with their rows", {
   d <- example_data()
-  d$stayingTimeCensoringtype[2] <- "rihgt"
-  expect_match(capture_warnings(convert_stay(d)), "Unknown stayingTimeCensoringtype.*row[(]s[)] 2 ", all = FALSE)
+  d$stayingTimeCensoringType[2] <- "rihgt"
+  expect_match(capture_warnings(convert_stay(d)), "Unknown stayingTimeCensoringType.*row[(]s[)] 2 ", all = FALSE)
 
   d <- example_data()
   d$out[9] <- NA
@@ -160,7 +160,7 @@ test_that("inconsistent records are reported with their rows", {
 
 test_that("an animal entering between videos is accepted without a warning", {
   d <- example_data()
-  d$stayingTimeCensoringtype[9] <- "left"
+  d$stayingTimeCensoringType[9] <- "left"
   expect_no_warning(res <- convert_stay(d))
   expect_equal(res$Stay[res$Species == "fox"], c(NA, 8))
 })

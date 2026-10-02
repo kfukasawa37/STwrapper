@@ -1,8 +1,8 @@
 test_that("simulated data can be converted", {
   set.seed(1)
   sim <- simulate_stay_data(n_station = 5, days = 30)
-  expect_true(all(c("deploymentID", "video_name", "DateTime", "species1",
-                    "enter", "out", "stayingTimeCensoringtype",
+  expect_true(all(c("deploymentID", "video_name", "DateTime", "species",
+                    "enter", "out", "stayingTimeCensoringType",
                     "Enter_new", "Enter_cont") %in% names(sim)))
   det <- convert_stay(sim, term = "term1")
   truth <- attr(sim, "truth")
@@ -19,7 +19,7 @@ test_that("simulated data can be converted", {
 test_that("each camera has set-up and retrieval videos", {
   set.seed(2)
   sim <- simulate_stay_data(n_station = 3, days = 10)
-  people <- sim[sim$species1 == "hito", ]
+  people <- sim[sim$species == "hito", ]
   expect_equal(nrow(people), 6)
   span <- tapply(as.POSIXct(people$DateTime, format = "%Y/%m/%d %H:%M:%S", tz = "UTC"),
                  people$deploymentID, function(x) as.numeric(diff(range(x)), units = "days"))

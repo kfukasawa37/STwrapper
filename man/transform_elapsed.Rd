@@ -35,7 +35,11 @@ used when \code{offset_videolength = TRUE}. Default \code{"video_length"}.}
 
 A warning lists the rows with a negative elapsed time, with \code{out_elapsed}
 smaller than \code{enter_elapsed}, or, when an offset is subtracted, with an
-elapsed time longer than the offset (the video length).}
+elapsed time longer than the offset (the video length).
+
+Columns given with the \verb{col_*} arguments are returned under the standard
+names \code{enter_elapsed}, \code{out_elapsed}, \code{video_length} and \code{DateTime}, so the
+following functions need no column arguments for them.}
 }
 \value{
 \code{data} with the columns \code{enter} and \code{out} set to clock times
