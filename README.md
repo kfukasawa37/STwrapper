@@ -15,6 +15,72 @@ remotes::install_github("YoshihiroNakashima/ctrest")  # used in the vignette
 remotes::install_github("kfukasawa37/STwrapper", build_vignettes = TRUE)
 ```
 
+### If Pandoc is not found / Pandoc が見つからない場合
+
+Building the vignettes (`build_vignettes = TRUE`) needs
+[Pandoc](https://pandoc.org/). RStudio comes with Pandoc and makes it
+available to R automatically, but R used on its own (R GUI, a terminal,
+VS Code, ...) may not find it and the installation stops with:
+
+```
+Error: processing vignette 'rest-workflow.Rmd' failed with diagnostics:
+   Pandoc is required to build R Markdown vignettes but not available. Please make sure it is installed.
+```
+
+Check whether R can find Pandoc:
+
+```r
+rmarkdown::pandoc_available()   # TRUE if Pandoc is found
+```
+
+If it is `FALSE`, do one of the following and then run the installation again.
+
+1. **Install Pandoc** from <https://pandoc.org/installing.html>, or from the
+   command line:
+
+   ```sh
+   winget install --id JohnMacFarlane.Pandoc   # Windows
+   brew install pandoc                         # macOS (Homebrew)
+   sudo apt install pandoc                     # Ubuntu / Debian
+   ```
+
+   Restart R afterwards so that it picks up the new `PATH`.
+
+2. **Use the Pandoc that comes with RStudio** (if RStudio is installed) by
+   telling R where it is, in the same R session before the installation. Its
+   folder depends on the RStudio version, so search for it:
+
+   ```r
+   rstudio <- c("C:/Program Files/RStudio",                      # Windows
+                "/Applications/RStudio.app/Contents/Resources")  # macOS
+   pandoc <- list.files(rstudio[dir.exists(rstudio)], pattern = "^pandoc(\\.exe)?$",
+                        recursive = TRUE, full.names = TRUE)
+   pandoc                                          # check what was found
+   Sys.setenv(RSTUDIO_PANDOC = dirname(pandoc[1]))
+   rmarkdown::pandoc_available()                   # should now be TRUE
+   ```
+
+   If RStudio is installed in another folder, change `rstudio` accordingly.
+
+3. **Skip the vignettes**: install with `build_vignettes = FALSE` (the
+   functions work the same). The vignette sources can be read in the
+   [`vignettes/`](vignettes/) folder of this repository.
+
+**日本語での説明：** `build_vignettes = TRUE` でチュートリアル（vignette）を一緒にビルドするには
+Pandoc が必要です。RStudio には Pandoc が同梱されていて自動で使われますが、
+R を単体で使う場合（R GUI、ターミナル、VS Code など）は見つからず、上のエラーで止まることがあります。
+`rmarkdown::pandoc_available()` が `FALSE` の場合は、次のどれかを行ってから、もう一度インストールしてください。
+
+1. **Pandoc をインストールする：** <https://pandoc.org/installing.html> からインストーラを入手するか、
+   上のコマンド（Windows なら `winget install --id JohnMacFarlane.Pandoc`）を使います。
+   インストール後は R を再起動してください。
+2. **RStudio に同梱の Pandoc を使う：** RStudio が入っている場合は、インストールの前に同じ R セッションで
+   上のコードを実行し、RStudio のフォルダから `pandoc` を探して `RSTUDIO_PANDOC` に設定します
+   （フォルダの場所は RStudio のバージョンによって異なるため、探して指定しています）。
+   RStudio を別の場所にインストールしている場合は、`rstudio` のパスを書き換えてください。
+3. **vignette をビルドしない：** `build_vignettes = FALSE` でインストールします（関数は同じように使えます）。
+   チュートリアルの原稿は、このリポジトリの [`vignettes/`](vignettes/) フォルダで読めます。
+
 ## Usage
 
 ```r
